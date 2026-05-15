@@ -1,0 +1,28 @@
+# Example scenarios for a 12V automotive product. Three project-global corners
+# plus one block-specific scenario contributed by the RF block.
+
+[[scenario]]
+name = "nominal"
+description = "Room-temp benchmark, nominal battery"
+ambient_temp = "25 degC"
+vbat = "12.0 V"
+
+[[scenario]]
+name = "cold_low_vin"
+description = "Cold start, depleted battery"
+ambient_temp = "-40 degC"
+vbat = "9.0 V"
+
+[[scenario]]
+name = "hot_high_vin"
+description = "Hot ambient, alternator load"
+ambient_temp = "85 degC"
+vbat = "16.0 V"
+
+[[scenario]]
+name = "rf_carrier_drift"
+description = "RF-specific corner — see blocks/rf/scenarios.py"
+owner_block = "rf"
+ambient_temp = "25 degC"
+vbat = "12.0 V"
+xtal_drift = "20 ppm"
