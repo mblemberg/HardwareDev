@@ -1,7 +1,10 @@
 """CAN transceiver block.
 
 Per design doc 6.6, a block's ``__init__.py`` re-exports only public
-Contracts. Step 7 (Contracts) hasn't landed yet, so this is empty —
-``leaves`` and ``analysis`` modules are imported directly by the notebook
-or the project runner.
+Contracts. Other blocks should ``from blocks.can_transceiver import
+can_5v_draw`` rather than reaching into ``leaves`` / ``analysis`` directly
+— the framework's cycle detector enforces this.
 """
+from blocks.can_transceiver.contracts import can_5v_draw
+
+__all__ = ["can_5v_draw"]
