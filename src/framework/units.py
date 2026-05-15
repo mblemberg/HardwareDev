@@ -26,6 +26,14 @@ registry.formatter.default_format = "~P"
 # Pinning the application registry to ours globally fixes this.
 pint.set_application_registry(registry)
 
+# Engineering naming alias. The design doc (section 6.5) prescribes capitalized
+# `Ohm` for Python identifiers; this lets strings like "5 Ohm" parse via
+# `framework._toml.parse_pint`. Prefixed forms (`mOhm`, `kOhm`) can't be
+# aliased the same way -- Pint constructs them at parse time, not as canonical
+# names -- so in strings, use the spelled-out form ("5 milliohm", "10 kiloohm").
+# Python code keeps the capitalized engineering form (the symbols exported below).
+registry.define("@alias ohm = Ohm")
+
 # Voltage
 V = registry.volt
 mV = registry.millivolt

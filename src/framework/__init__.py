@@ -6,6 +6,7 @@ Curated re-exports per design doc section 11 (framework.__all__).
 __version__ = "0.0.1"
 from framework import requirements, units
 from framework._toml import TomlError
+from framework.component import Component, coerce_field_quantity
 from framework.modes import Mode, ModeSet, load_modes
 from framework.project import Project
 from framework.provenance import ProvenanceRef
@@ -20,6 +21,7 @@ from framework.requirements import (
 from framework.scenarios import Scenario, ScenarioSet, load_scenarios
 
 __all__ = [
+    "Component",
     "Constant",
     "CurrentBudget",
     "Mode",
@@ -35,6 +37,7 @@ __all__ = [
     "SupplyEnvelope",
     "TempRange",
     "TomlError",
+    "coerce_field_quantity",
     "load_modes",
     "load_scenarios",
     "requirements",
