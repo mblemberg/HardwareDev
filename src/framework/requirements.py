@@ -160,12 +160,20 @@ class Requirement(BaseModel):
 
     Subclasses add typed Quantity fields. Construction auto-registers the
     instance via :func:`register`.
+
+    Both ``applies_to_mode`` and ``applies_to_scenario`` are optional scoping
+    fields — set them when the requirement only applies under a specific
+    system mode or operating corner. ``None`` (the default) means "applies
+    everywhere." The verification machinery (step 9) uses these to pick the
+    right (scenario × mode) cells when checking the requirement.
     """
 
     model_config = ConfigDict(arbitrary_types_allowed=True, frozen=True)
 
     req: str = Field(..., min_length=1, description="Jama requirement ID, e.g. 'REQ-PWR-001'")
     description: str | None = None
+    applies_to_mode: str | None = None
+    applies_to_scenario: str | None = None
 
     def model_post_init(self, _ctx: Any) -> None:
         register(self)
@@ -273,15 +281,14 @@ class SupplyEnvelope(Requirement):
 
 
 class CurrentBudget(Requirement):
-    """Maximum allowed current draw, optionally scoped to a mode.
+    """Maximum allowed current draw.
 
-    ``applies_to_mode`` ties the budget to a specific system mode (typically
-    ``"sleep"`` for quiescent-current limits). If ``None``, the budget applies
-    in every mode.
+    The base class ``applies_to_mode`` is the typical scope (set to ``"sleep"``
+    for quiescent-current limits); ``applies_to_scenario`` is also available
+    when the budget tightens at temperature extremes.
     """
 
     max: pint.Quantity
-    applies_to_mode: str | None = None
 
     @field_validator("max", mode="before")
     @classmethod
@@ -297,8 +304,75 @@ class CurrentBudget(Requirement):
         return self
 
 
+class Performance(Requirement):
+    """A scalar performance target — the escape hatch for requirements that
+    don't fit :class:`TempRange`, :class:`SupplyEnvelope`, or :class:`CurrentBudget`.
+
+    Use this for one-off targets without strong cross-field structure: boot
+    time bounds, measurement accuracy, reference-voltage tolerance, EMI
+    margins, etc. Add a typed subclass instead only when two or more
+    requirements start sharing a non-trivial validation rule.
+
+    Fields:
+      - ``target``: the canonical value. Any dimensionality.
+      - ``tolerance``: optional symmetric tolerance band around ``target``
+        (target +/- tolerance). Must share dimensionality with ``target``.
+        Leave ``None`` for one-sided bounds; the verification test interprets
+        the target as either a max or a min depending on what's being checked.
+
+    Scoping the requirement to a specific operating condition is what the
+    base-class ``applies_to_mode`` / ``applies_to_scenario`` fields are for:
+
+        ADC_ACC_NOMINAL = Performance(
+            target=0.5 * percent, req="REQ-PERF-001a",
+            applies_to_scenario="nominal",
+        )
+        ADC_ACC_HOT = Performance(
+            target=1.0 * percent, req="REQ-PERF-001b",
+            applies_to_scenario="hot_high_vin",
+        )
+
+    Three separate requirements, three Jama IDs, each linked to a single
+    operating corner. The verification test for ADC accuracy iterates them
+    and checks the computed error Quantity against each at its scenario.
+    """
+
+    target: pint.Quantity
+    tolerance: pint.Quantity | None = None
+
+    @field_validator("target", mode="before")
+    @classmethod
+    def _coerce_target(cls, v: Any) -> pint.Quantity:
+        # Any dimensionality is acceptable here -- Performance is the escape hatch.
+        return _coerce(v, location="Performance.target")
+
+    @field_validator("tolerance", mode="before")
+    @classmethod
+    def _coerce_tolerance(cls, v: Any) -> pint.Quantity | None:
+        if v is None:
+            return None
+        return _coerce(v, location="Performance.tolerance")
+
+    @model_validator(mode="after")
+    def _check_tolerance(self) -> "Performance":
+        if self.tolerance is not None:
+            if self.tolerance.dimensionality != self.target.dimensionality:
+                raise ValueError(
+                    f"Performance {self.req}: tolerance ({self.tolerance}) must share "
+                    f"dimensionality with target ({self.target}); got "
+                    f"{self.tolerance.dimensionality} vs {self.target.dimensionality}"
+                )
+            tol_in_target_unit = float(self.tolerance.to(self.target.units).magnitude)
+            if tol_in_target_unit < 0:
+                raise ValueError(
+                    f"Performance {self.req}: tolerance ({self.tolerance}) must be non-negative"
+                )
+        return self
+
+
 __all__ = [
     "CurrentBudget",
+    "Performance",
     "Requirement",
     "SupplyEnvelope",
     "TempRange",

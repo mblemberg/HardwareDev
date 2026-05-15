@@ -11,13 +11,14 @@ import pytest
 from framework import (
     Constant,
     CurrentBudget,
+    Performance,
     Quantity,
     RangeQuantity,
     SupplyEnvelope,
     TempRange,
     requirements,
 )
-from framework.units import A, V, degC, mA, mV, registry, uA
+from framework.units import A, Hz, V, degC, mA, mV, ms, percent, registry, uA
 
 
 @pytest.fixture(autouse=True)
@@ -167,6 +168,76 @@ class TestCurrentBudget:
     def test_string_input(self) -> None:
         b = CurrentBudget(max="2 mA", applies_to_mode="sleep", req="REQ-PWR-016")
         assert math.isclose(b.max.to(uA).magnitude, 2000.0)
+
+
+# ---------------------------------------------------------------------------
+# Performance
+# ---------------------------------------------------------------------------
+
+
+class TestPerformance:
+    def test_basic_construction(self) -> None:
+        p = Performance(
+            target=200 * ms,
+            req="REQ-SYS-008",
+            description="Boot time from cold start",
+        )
+        assert math.isclose(p.target.to(ms).magnitude, 200.0)
+        assert p.tolerance is None
+
+    def test_with_tolerance(self) -> None:
+        p = Performance(target=2.5 * V, tolerance=25 * mV, req="REQ-AN-014")
+        assert math.isclose(p.tolerance.to(mV).magnitude, 25.0)
+
+    def test_tolerance_dimension_mismatch(self) -> None:
+        with pytest.raises(pydantic.ValidationError) as exc_info:
+            Performance(target=2.5 * V, tolerance=25 * mA, req="REQ-X")
+        assert "dimensionality" in str(exc_info.value).lower()
+
+    def test_negative_tolerance_rejected(self) -> None:
+        with pytest.raises(pydantic.ValidationError) as exc_info:
+            Performance(target=2.5 * V, tolerance=-25 * mV, req="REQ-X")
+        assert "non-negative" in str(exc_info.value)
+
+    def test_accepts_any_dimensionality(self) -> None:
+        # Performance is the escape hatch — Hz, ms, percent, anything goes.
+        Performance(target=100 * Hz, req="REQ-EMI-001")
+        Performance(target=0.5 * percent, req="REQ-PERF-001a")
+
+    def test_string_input(self) -> None:
+        p = Performance(target="200 ms", req="REQ-SYS-009")
+        assert math.isclose(p.target.to(ms).magnitude, 200.0)
+
+    def test_scoped_to_scenario(self) -> None:
+        p = Performance(
+            target=0.5 * percent,
+            req="REQ-PERF-001a",
+            applies_to_scenario="nominal",
+            description="ADC accuracy at 25 C",
+        )
+        assert p.applies_to_scenario == "nominal"
+        assert p.applies_to_mode is None
+
+    def test_scoped_to_mode_and_scenario(self) -> None:
+        p = Performance(
+            target=10 * uA,
+            req="REQ-PWR-022",
+            applies_to_mode="sleep",
+            applies_to_scenario="cold_low_vin",
+        )
+        assert p.applies_to_mode == "sleep"
+        assert p.applies_to_scenario == "cold_low_vin"
+
+    def test_three_scenario_scoped_reqs_form_a_set(self) -> None:
+        # The pattern: one Jama row per derate corner, each scoped to a scenario.
+        a = Performance(target=0.5 * percent, req="REQ-PERF-001a", applies_to_scenario="nominal")
+        b = Performance(target=1.0 * percent, req="REQ-PERF-001b", applies_to_scenario="hot_high_vin")
+        c = Performance(target=0.8 * percent, req="REQ-PERF-001c", applies_to_scenario="cold_low_vin")
+        # Three separate registrations; verifications can iterate by prefix.
+        accuracy_reqs = [r for r in requirements.list_all() if r.req.startswith("REQ-PERF-001")]
+        assert accuracy_reqs == [a, b, c]
+        by_scenario = {r.applies_to_scenario: r.target.to(percent).magnitude for r in accuracy_reqs}
+        assert by_scenario == {"nominal": 0.5, "hot_high_vin": 1.0, "cold_low_vin": 0.8}
 
 
 # ---------------------------------------------------------------------------

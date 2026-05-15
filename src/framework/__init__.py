@@ -10,6 +10,7 @@ from framework.provenance import ProvenanceRef
 from framework.quantity import Constant, Quantity, RangeQuantity
 from framework.requirements import (
     CurrentBudget,
+    Performance,
     Requirement,
     SupplyEnvelope,
     TempRange,
@@ -21,6 +22,7 @@ __all__ = [
     "CurrentBudget",
     "Mode",
     "ModeSet",
+    "Performance",
     "Project",
     "ProvenanceRef",
     "Quantity",
