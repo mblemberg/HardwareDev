@@ -28,7 +28,10 @@ blocks/
     analysis.py          # derived nodes; Hamilton wires by parameter name
     contracts.py         # public Contracts (declared bounds) — design doc 6.7
     verifications.py     # @verification_test functions — design doc 6.8 / step 9a
-    # future: report.ipynb (step 12)
+tests/
+  conftest.py            # session-scoped project_results fixture
+  test_verifications.py  # parametrizes over every block's @verification_test (step 9b)
+# future: report.ipynb (step 12)
 can_transceiver_analysis.ipynb   # end-to-end demo: load project, run DAG, render results
 ```
 
@@ -67,7 +70,15 @@ For requirements that derate by environmental corner (ADC accuracy at -40 / 25 /
 A `@contract` function returns the *declared* commitment (typically a mode-keyed range with headroom above the datasheet maxes). The matching `compares_to="<actual node>"` names the local DAG node that computes the *actual* — usually a leaf or an `analysis.py` function. `Project.run` runs the consistency check automatically after Hamilton execute and raises `ContractViolation` on the first mismatch. See `blocks/can_transceiver/contracts.py::can_5v_draw` for the worked pattern.
 
 ### `@verification_test` is the formal version of a manual `.within(...)` check
-Where `Quantity.within(lo, hi)` returns just `True`/`False`, a `@verification_test` carries a name, Jama requirement ID, severity, and returns a `TestResult` listing the exact failing corners. The runner is `run_verifications([verifications], results)`; same function feeds the pytest plugin (step 9b) and the report channels (step 9c) once those land. The notebook's section 6 is the worked pattern — it surfaces the T_J failure at `hot_high_vin / {active, diagnostic}` automatically rather than via hand-rolled iteration.
+Where `Quantity.within(lo, hi)` returns just `True`/`False`, a `@verification_test` carries a name, Jama requirement ID, severity, and returns a `TestResult` listing the exact failing corners. The runner is `run_verifications([verifications], results)`. The same definition feeds:
+- pytest (step 9b): `tests/test_verifications.py` parametrizes over `collect_verification_tests([...])`; each test gets its own pytest item with severity-aware verdicts (`pytest.fail` / `xfail` / `skip`).
+- output channels (step 9c): `results_to_html_table` / `results_to_markdown_table` / `results_to_pr_comment` / `results_to_jama_records`.
+
+Notebook section 6 demonstrates the HTML table + PR-comment render. The thermal verification is *designed to fail* (it surfaces the T_J overshoot at `hot_high_vin / {active, diagnostic}` — the worked example's headline failure) — `pytest tests/` will exit non-zero until the design is derated, which is the correct CI signal.
+
+### Adding a new block's verifications
+1. Write `blocks/<name>/verifications.py` with `@verification_test` functions.
+2. Add an import to `tests/test_verifications.py::_all_block_verifications` so the parametrize sees it. (Manual for now — auto-discovery is a small follow-on if multiple blocks land.)
 
 ## Don'ts
 
