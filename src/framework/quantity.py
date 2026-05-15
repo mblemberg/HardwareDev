@@ -11,7 +11,7 @@ are deferred to a later phase (section 7.5, Monte Carlo opt-in).
 from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
-from typing import Union
+from typing import Iterator, Union
 
 import pint
 
@@ -191,6 +191,29 @@ class Quantity:
             if v_lo < lo_f or v_hi > hi_f:
                 return False
         return True
+
+    def iter_axes(
+        self,
+    ) -> Iterator[tuple[str | None, str | None, ScalarOrRange]]:
+        """Yield ``(scenario, mode, value)`` for every axis combination.
+
+        Scenario and mode are ``None`` when the Quantity doesn't carry that
+        axis at the leaf being visited. ``value`` is a scalar or ``(lo, hi)``
+        range tuple in ``self.unit``. Used by run-time contract consistency
+        (design doc 6.7) and verification-test result enumeration (6.8) to
+        report the exact corner(s) where a check failed.
+        """
+        if self.by_mode is not None:
+            for mode, child in self.by_mode.items():
+                for s, _ignored, v in child.iter_axes():
+                    yield (s, mode, v)
+            return
+        if self.by_scenario is not None:
+            for s, v in self.by_scenario.items():
+                yield (s, None, v)
+            return
+        assert self.nominal is not None
+        yield (None, None, self.nominal)
 
     def _iter_scenario_values(self) -> list[ScalarOrRange]:
         if self.by_mode is not None:

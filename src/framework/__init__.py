@@ -30,6 +30,18 @@ from framework.requirements import (
     TempRange,
 )
 from framework.scenarios import Scenario, ScenarioSet, load_scenarios
+from framework.verification import (
+    ScenarioMode,
+    Severity,
+    TestResult,
+    VerificationContext,
+    VerificationMeta,
+    format_results,
+    get_verification_meta,
+    is_verification_test,
+    run_verifications,
+    verification_test,
+)
 
 __all__ = [
     "Component",
@@ -48,18 +60,28 @@ __all__ = [
     "RangeQuantity",
     "Requirement",
     "Scenario",
+    "ScenarioMode",
     "ScenarioSet",
+    "Severity",
     "SupplyEnvelope",
     "TempRange",
+    "TestResult",
     "TomlError",
+    "VerificationContext",
+    "VerificationMeta",
     "check_contract_consistency",
     "coerce_field_quantity",
     "contract",
     "detect_cycles",
+    "format_results",
     "get_contract_meta",
+    "get_verification_meta",
     "is_contract",
+    "is_verification_test",
     "load_modes",
     "load_scenarios",
     "requirements",
+    "run_verifications",
     "units",
+    "verification_test",
 ]

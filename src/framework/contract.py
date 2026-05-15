@@ -33,7 +33,7 @@ import inspect
 import types
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Callable, Iterator, TypeVar
+from typing import TYPE_CHECKING, Any, Callable, TypeVar
 
 if TYPE_CHECKING:
     from framework.quantity import Quantity, ScalarOrRange
@@ -382,7 +382,7 @@ def _compare_quantities(
         actual = actual.to(declared.unit)
 
     mismatches: list[ContractMismatch] = []
-    for scenario, mode, value in _iter_axes(actual):
+    for scenario, mode, value in actual.iter_axes():
         try:
             d_value = _evaluate_at(declared, scenario=scenario, mode=mode)
         except KeyError as e:
@@ -408,23 +408,6 @@ def _compare_quantities(
                 )
             )
     return mismatches
-
-
-def _iter_axes(
-    q: "Quantity",
-) -> Iterator[tuple[str | None, str | None, "ScalarOrRange"]]:
-    """Yield (scenario, mode, value) for every axis combination on ``q``."""
-    if q.by_mode is not None:
-        for mode, child in q.by_mode.items():
-            for s, _ignored, v in _iter_axes(child):
-                yield (s, mode, v)
-        return
-    if q.by_scenario is not None:
-        for s, v in q.by_scenario.items():
-            yield (s, None, v)
-        return
-    assert q.nominal is not None
-    yield (None, None, q.nominal)
 
 
 def _evaluate_at(

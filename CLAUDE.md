@@ -57,12 +57,18 @@ If a `.ipynb` is open in VS Code, VS Code will auto-save its in-memory copy and 
 ### 7. `Project.run` runs the contract consistency check automatically
 After Hamilton executes, every `@contract` with `compares_to=<actual node>` is compared against the named actual at every (scenario, mode) point — `ContractViolation` is raised on the first mismatch. The framework auto-augments the run targets so the contract and its actual both end up in `results` even when the caller only asks for one. Pass `check_contracts=False` to bypass (debugging only). For unit tests of partial results without that wiring, call `check_contract_consistency(modules, results)` directly — it skips missing targets unless you pass `strict=True`.
 
+### 8. `@verification_test` is a marker — `run_verifications()` discovers it, NOT Hamilton
+Verification-test functions take a single `ctx: VerificationContext` and return a `TestResult`. They don't participate in the DAG. Discovery is module-scan only: `run_verifications([modules...], results_from_project_run)`. Tests are keyed by their declared `name=` (not the function name), so renaming the function doesn't break dashboards. Duplicate names raise. `TestResult` carries a `__test__ = False` flag so pytest doesn't try to collect the dataclass itself as a test class.
+
+### 9. `Quantity.iter_axes()` is the cross-axis iteration primitive
+Yields `(scenario, mode, value)` for every leaf in the by_mode × by_scenario × nominal axis tree. Used by both the contract-consistency check (step 8) and verification assertion helpers (step 9a) to enumerate failing corners. Promoted from a private `_iter_axes` in `contract.py` when 9a needed it too — when you want "do something at every (scenario, mode) point this Quantity carries", use this.
+
 ## Dev workflow
 
 ```powershell
 # from this directory:
 poetry install -E "dev notebooks"
-poetry run pytest                       # 241 tests as of step 8
+poetry run pytest                       # 264 tests as of step 9a
 poetry run pytest --cov                 # coverage report
 poetry run mypy                         # strict on src/framework
 ```
@@ -82,6 +88,10 @@ src/framework/
   modes.py          # Mode, ModeSet, load_modes
   requirements.py   # Requirement base + TempRange / SupplyEnvelope / CurrentBudget / Performance + registry
   project.py        # Project orchestrator + Hamilton driver
+  contract.py       # @contract + ContractMeta + detect_cycles + check_contract_consistency
+  component.py      # Component base + coerce_field_quantity validator
+  verification.py   # @verification_test + TestResult + VerificationContext + run_verifications
+  cache.py / _hashing.py  # content-addressed cache for DAG nodes
   provenance.py     # ProvenanceRef stub (full impl is step 10)
   _toml.py          # internal: Pint-string parsing with precise error locations
 tests/

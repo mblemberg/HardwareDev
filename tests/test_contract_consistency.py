@@ -15,7 +15,7 @@ from framework import (
     check_contract_consistency,
     contract,
 )
-from framework.contract import _evaluate_at, _iter_axes
+from framework.contract import _evaluate_at
 from framework.modes import ModeSet
 from framework.scenarios import ScenarioSet
 from framework.units import A, mA
@@ -48,14 +48,14 @@ class TestComparesToMetadata:
 class TestAxisHelpers:
     def test_iter_axes_constant(self) -> None:
         q = Constant(5.0, mA)
-        assert list(_iter_axes(q)) == [(None, None, 5.0)]
+        assert list(q.iter_axes()) == [(None, None, 5.0)]
 
     def test_iter_axes_by_mode(self) -> None:
         q = Quantity(unit=mA, by_mode={
             "a": Constant(1.0, mA),
             "b": RangeQuantity(2.0, 3.0, mA),
         })
-        axes = sorted(_iter_axes(q), key=lambda t: t[1] or "")
+        axes = sorted(q.iter_axes(), key=lambda t: t[1] or "")
         assert axes == [(None, "a", 1.0), (None, "b", (2.0, 3.0))]
 
     def test_evaluate_at_constant_ignores_axes(self) -> None:
