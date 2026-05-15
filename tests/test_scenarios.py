@@ -205,3 +205,46 @@ def test_loaded_quantities_arithmetic_through_pint() -> None:
     hot = ss.by_name("hot_high_vin")
     span = hot.context["vbat"] - cold.context["vbat"]
     assert math.isclose(span.to(V).magnitude, 7.0)
+
+
+# ---------- as_quantity helper ----------
+
+
+class TestAsQuantity:
+    def test_pulls_key_across_all_carriers(self) -> None:
+        ss = load_scenarios(FIXTURES / "scenarios.toml")
+        vbat = ss.as_quantity("vbat")
+        assert math.isclose(vbat.at(scenario="nominal"), 12.0)
+        assert math.isclose(vbat.at(scenario="cold_low_vin"), 9.0)
+        assert math.isclose(vbat.at(scenario="hot_high_vin"), 16.0)
+
+    def test_target_unit_explicit_conversion(self) -> None:
+        ss = load_scenarios(FIXTURES / "scenarios.toml")
+        from framework.units import mV
+        vbat = ss.as_quantity("vbat", unit=mV)
+        assert vbat.unit == mV
+        assert math.isclose(vbat.at(scenario="nominal"), 12_000.0)
+
+    def test_only_carrying_scenarios_included(self) -> None:
+        ss = load_scenarios(FIXTURES / "scenarios.toml")
+        # `xtal_drift` is only on rf_carrier_drift
+        drift = ss.as_quantity("xtal_drift")
+        # Only that one scenario appears in by_scenario
+        assert set(drift.by_scenario or {}) == {"rf_carrier_drift"}
+
+    def test_missing_key_everywhere_raises(self) -> None:
+        ss = load_scenarios(FIXTURES / "scenarios.toml")
+        with pytest.raises(KeyError) as exc_info:
+            ss.as_quantity("nonexistent")
+        msg = str(exc_info.value)
+        assert "nonexistent" in msg
+        assert "available context keys" in msg
+
+    def test_returned_quantity_is_arithmetic_compatible(self) -> None:
+        ss = load_scenarios(FIXTURES / "scenarios.toml")
+        vbat = ss.as_quantity("vbat")
+        from framework import Constant
+        from framework.units import Ohm
+        i = vbat / Constant(100.0, Ohm)
+        # i = vbat / 100 Ohm, so 9V/100 = 90 mA, etc.
+        assert math.isclose(i.at(scenario="cold_low_vin"), 9.0 / 100.0)

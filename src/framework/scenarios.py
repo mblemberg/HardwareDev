@@ -105,6 +105,38 @@ class ScenarioSet(BaseModel):
     def __contains__(self, name: object) -> bool:
         return isinstance(name, str) and any(s.name == name for s in self.scenarios)
 
+    def as_quantity(self, key: str, *, unit: pint.Unit | None = None) -> "Quantity":
+        """Build a `Quantity(by_scenario=...)` from a context key across this set.
+
+        Only scenarios that define ``key`` are included in the result. The
+        magnitude of each scenario's value is converted into ``unit`` (or, if
+        not given, into the first matching scenario's unit) and stored in the
+        returned Quantity's ``by_scenario`` dict.
+
+        Raises:
+            KeyError: if no scenario in this set carries ``key``.
+
+        Example:
+            >>> scenarios = load_scenarios("project/scenarios.toml")
+            >>> vbat = scenarios.as_quantity("vbat")
+            >>> vbat.at(scenario="cold_low_vin")
+            9.0
+        """
+        from framework.quantity import Quantity
+
+        carriers = [s for s in self.scenarios if key in s.context]
+        if not carriers:
+            raise KeyError(
+                f"no scenario in this set defines {key!r}; "
+                f"available context keys per scenario: "
+                f"{ {s.name: sorted(s.context) for s in self.scenarios} }"
+            )
+        target_unit = unit if unit is not None else carriers[0].context[key].units
+        by_scenario = {
+            s.name: float(s.context[key].to(target_unit).magnitude) for s in carriers
+        }
+        return Quantity(unit=target_unit, by_scenario=by_scenario)
+
 
 def load_scenarios(path: Path | str) -> ScenarioSet:
     """Load a scenarios TOML file into a `ScenarioSet`.

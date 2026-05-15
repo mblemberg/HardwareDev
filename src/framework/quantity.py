@@ -35,10 +35,28 @@ def _collapse(r: Range) -> ScalarOrRange:
     return lo if lo == hi else (lo, hi)
 
 
-def _coerce_to_unit(value: float | pint.Quantity, unit: pint.Unit) -> float:
-    """Convert a raw number or Pint quantity into a float expressed in `unit`."""
+def _coerce_to_unit(
+    value: "float | pint.Quantity | Quantity", unit: pint.Unit
+) -> float:
+    """Convert a raw number, Pint quantity, or scalar framework Quantity into ``unit``.
+
+    Scalar framework Quantities (no scenario/mode/range axes) are unwrapped to
+    their nominal value and converted offset-aware. Axed Quantities raise —
+    spec bounds must be single points.
+    """
     if isinstance(value, pint.Quantity):
         return float(value.to(unit).magnitude)
+    if isinstance(value, Quantity):
+        if value.by_scenario is not None or value.by_mode is not None:
+            raise TypeError(
+                "spec bound must be a scalar Quantity, not one carrying "
+                "scenario or mode axes"
+            )
+        nom = value.nominal
+        if isinstance(nom, tuple):
+            raise TypeError("spec bound must be a scalar, not a range")
+        assert nom is not None
+        return float(registry.Quantity(nom, value.unit).to(unit).magnitude)
     return float(value)
 
 
@@ -152,8 +170,20 @@ class Quantity:
         assert self.nominal is not None
         return self.nominal
 
-    def within(self, lo: pint.Quantity, hi: pint.Quantity) -> bool:
-        """True iff every scenario/mode evaluation lies within [lo, hi]."""
+    def within(
+        self,
+        lo: "pint.Quantity | Quantity | float",
+        hi: "pint.Quantity | Quantity | float",
+    ) -> bool:
+        """True iff every scenario/mode evaluation lies within [lo, hi].
+
+        ``lo`` and ``hi`` may be:
+
+        - ``pint.Quantity`` (e.g. ``3.3 * units.V``) — convenient for non-offset units;
+        - framework ``Quantity`` (e.g. ``Constant(125, units.degC)``) — works for
+          offset units like degC/degF where ``125 * degC`` raises in Pint;
+        - plain numbers — assumed to be in ``self.unit``.
+        """
         lo_f = _coerce_to_unit(lo, self.unit)
         hi_f = _coerce_to_unit(hi, self.unit)
         for v in self._iter_scenario_values():
@@ -174,13 +204,28 @@ class Quantity:
         return [self.nominal]
 
     def to(self, target_unit: pint.Unit) -> "Quantity":
-        """Return an equivalent Quantity expressed in `target_unit`."""
+        """Return an equivalent Quantity expressed in `target_unit`.
+
+        Per-magnitude conversion through Pint, so offset units (degC, degF)
+        convert correctly: 358.15 K → 85.0 °C, not 358.15 × (-272.15).
+        Note that adding a K-unit Quantity to a degC-unit Quantity uses
+        offset-aware conversion on the operand, which is *not* what you want
+        for temperature deltas — do thermal math in K and convert to °C
+        only for display.
+        """
         if target_unit == self.unit:
             return self
-        if not registry.Quantity(1, self.unit).check(registry.Quantity(1, target_unit).dimensionality):
+        src_dim = registry.Quantity(1.0, self.unit).dimensionality
+        dst_dim = registry.Quantity(1.0, target_unit).dimensionality
+        if src_dim != dst_dim:
             raise pint.DimensionalityError(self.unit, target_unit)
-        factor = float(registry.Quantity(1, self.unit).to(target_unit).magnitude)
-        return self._map_scalars(lambda x: x * factor, new_unit=target_unit)
+        src = self.unit
+        dst = target_unit
+
+        def _convert(x: float) -> float:
+            return float(registry.Quantity(x, src).to(dst).magnitude)
+
+        return self._map_scalars(_convert, new_unit=target_unit)
 
     def _map_scalars(
         self,

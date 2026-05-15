@@ -13,7 +13,7 @@ from framework.quantity import (
     Quantity,
     RangeQuantity,
 )
-from framework.units import A, Ohm, V, kOhm, mA, mV, registry, uA
+from framework.units import A, K, Ohm, V, degC, kOhm, mA, mV, registry, uA
 
 
 # ---------- construction ----------
@@ -198,6 +198,23 @@ class TestWithin:
         )
         assert q.within(3.0 * V, 3.6 * V) is True
         assert q.within(3.1 * V, 3.6 * V) is False
+
+    def test_within_accepts_framework_quantity_bound(self) -> None:
+        # Useful for offset units (degC) where `125 * degC` raises in Pint.
+        q = Quantity(unit=degC, by_scenario={"cold": -20.0, "hot": 110.0})
+        assert q.within(Constant(-40.0, degC), Constant(125.0, degC)) is True
+        assert q.within(Constant(-40.0, degC), Constant(100.0, degC)) is False
+
+    def test_within_rejects_axed_bound(self) -> None:
+        q = Constant(25.0, degC)
+        bound_with_scenarios = Quantity(unit=degC, by_scenario={"a": 1.0, "b": 2.0})
+        with pytest.raises(TypeError, match="scalar Quantity"):
+            q.within(bound_with_scenarios, Constant(100.0, degC))
+
+    def test_within_rejects_range_bound(self) -> None:
+        q = Constant(25.0, degC)
+        with pytest.raises(TypeError, match="not a range"):
+            q.within(RangeQuantity(-5.0, 5.0, degC), Constant(100.0, degC))
 
 
 # ---------- arithmetic: scalars ----------
@@ -388,6 +405,23 @@ class TestToConversion:
     def test_to_preserves_mode(self) -> None:
         a = Quantity(unit=A, by_mode={"sleep": Constant(10e-6, A)}).to(mA)
         assert math.isclose(a.at(mode="sleep"), 0.01)
+
+    def test_to_handles_offset_units_kelvin_to_celsius(self) -> None:
+        # 358.15 K = 85.0 °C ; a factor-based conversion would mangle this.
+        q = Constant(358.15, K).to(degC)
+        assert math.isclose(q.at(), 85.0, abs_tol=1e-9)
+
+    def test_to_handles_offset_units_celsius_to_kelvin(self) -> None:
+        q = Constant(25.0, degC).to(K)
+        assert math.isclose(q.at(), 298.15, abs_tol=1e-9)
+
+    def test_to_handles_offset_with_scenarios(self) -> None:
+        q = Quantity(unit=degC, by_scenario={
+            "cold": -40.0, "nominal": 25.0, "hot": 85.0
+        }).to(K)
+        assert math.isclose(q.at(scenario="cold"), 233.15, abs_tol=1e-9)
+        assert math.isclose(q.at(scenario="nominal"), 298.15, abs_tol=1e-9)
+        assert math.isclose(q.at(scenario="hot"), 358.15, abs_tol=1e-9)
 
 
 # ---------- end-to-end: ohm's law sanity ----------
