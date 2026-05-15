@@ -5,6 +5,7 @@ Curated re-exports per design doc section 11 (framework.__all__).
 from framework import requirements, units
 from framework._toml import TomlError
 from framework.modes import Mode, ModeSet, load_modes
+from framework.project import Project
 from framework.provenance import ProvenanceRef
 from framework.quantity import Constant, Quantity, RangeQuantity
 from framework.requirements import (
@@ -20,6 +21,7 @@ __all__ = [
     "CurrentBudget",
     "Mode",
     "ModeSet",
+    "Project",
     "ProvenanceRef",
     "Quantity",
     "RangeQuantity",
