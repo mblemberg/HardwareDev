@@ -26,7 +26,8 @@ blocks/
     __init__.py
     leaves.py            # hand-coded leaf Quantities (datasheet values, mode-dependent currents)
     analysis.py          # derived nodes; Hamilton wires by parameter name
-    # future: contracts.py (step 7), verifications.py (step 9), report.ipynb (step 12)
+    contracts.py         # public Contracts (declared bounds) — design doc 6.7
+    # future: verifications.py (step 9), report.ipynb (step 12)
 can_transceiver_analysis.ipynb   # end-to-end demo: load project, run DAG, render results
 ```
 
@@ -46,7 +47,8 @@ Point VS Code's Jupyter kernel selector at that path. The framework is editable-
 2. In `leaves.py`, write functions returning leaf Quantities. Parameters can pull from project-supplied inputs (`ambient_temp`, `vbat`) or from inputs you'll pass to `project.run(...)` (e.g., a `Requirement` object).
 3. In `analysis.py`, write functions whose parameter names match either other functions' names (= depends on those) or project inputs. Hamilton wires them.
 4. From a notebook or script: `project.run(modules=[<name>.leaves, <name>.analysis], targets=[...], inputs={...})`.
-5. (Future) Add `contracts.py` for cross-block consumption (step 7), `verifications.py` for spec checks (step 9), `report.ipynb` from the template (step 12).
+5. Add `contracts.py` for cross-block consumption — each Contract returns its *declared* bound and points `compares_to="<actual node>"` at the local computed value. `Project.run` auto-verifies actual ⊆ declared per scenario/mode and raises `ContractViolation` on mismatch.
+6. (Future) `verifications.py` for spec checks (step 9), `report.ipynb` from the template (step 12).
 
 ## Patterns worth knowing
 
@@ -58,6 +60,9 @@ For requirements that derate by environmental corner (ADC accuracy at -40 / 25 /
 
 ### Thermal math: ambient to K first
 `(ambient_temp.to(K) + thermal_rise).to(degC)` — see `blocks/can_transceiver/analysis.py::t_j`. Adding `degC + K` directly does the wrong thing because Pint treats both as absolutes. (See the framework's CLAUDE.md, gotcha #2.)
+
+### Declared-vs-actual pattern in Contracts
+A `@contract` function returns the *declared* commitment (typically a mode-keyed range with headroom above the datasheet maxes). The matching `compares_to="<actual node>"` names the local DAG node that computes the *actual* — usually a leaf or an `analysis.py` function. `Project.run` runs the consistency check automatically after Hamilton execute and raises `ContractViolation` on the first mismatch. See `blocks/can_transceiver/contracts.py::can_5v_draw` for the worked pattern.
 
 ## Don'ts
 
