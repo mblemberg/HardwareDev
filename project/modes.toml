@@ -1,0 +1,17 @@
+# System operating modes (design doc 6.3). The whole board is in one mode at a time.
+
+[[mode]]
+name = "off"
+description = "Battery disconnected or master disable"
+
+[[mode]]
+name = "sleep"
+description = "Low-power monitoring, RTC running, MCU asleep"
+
+[[mode]]
+name = "active"
+description = "Normal operation, all peripherals available"
+
+[[mode]]
+name = "diagnostic"
+description = "Manufacturing test mode, all rails enabled"
