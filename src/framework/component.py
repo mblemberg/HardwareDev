@@ -30,6 +30,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from framework._toml import TomlError, parse_pint
 from framework.quantity import Constant, Quantity
+from framework.units import registry
 
 
 class Component(BaseModel):
@@ -58,13 +59,24 @@ def coerce_field_quantity(value: Any, *, location: str = "field") -> Quantity:
     - Lift ``pint.Quantity`` to a scenario-invariant ``Constant``.
     - Parse Pint-format strings via :func:`framework._toml.parse_pint`,
       then lift the resulting pint.Quantity to a Constant.
-    - Reject anything else (bare numbers, ints, etc.) — every Quantity-typed
-      field on a component schema must carry its unit explicitly.
+    - Lift bare ``int`` / ``float`` to a *dimensionless* ``Constant`` — useful
+      for ratios like tolerance, efficiency, or current gain. Misuse on a
+      dimensioned field (e.g. ``v_ds_max=30``) silently succeeds here but
+      fails loudly at the first arithmetic with a real-unit Quantity, since
+      dimensionless + volts is a Pint dimensionality error.
     """
     if isinstance(value, Quantity):
         return value
     if isinstance(value, pint.Quantity):
         return Constant(value)
+    if isinstance(value, bool):
+        # bool is a subclass of int — reject explicitly so True/False aren't
+        # silently lifted to 1.0 / 0.0 dimensionless.
+        raise ValueError(
+            f"{location}: bool is not a valid Quantity input"
+        )
+    if isinstance(value, (int, float)):
+        return Constant(float(value), registry.dimensionless)
     if isinstance(value, str):
         try:
             pq = parse_pint(value, location=location)
@@ -73,7 +85,8 @@ def coerce_field_quantity(value: Any, *, location: str = "field") -> Quantity:
         return Constant(pq)
     raise ValueError(
         f"{location}: component Quantity field must be a framework.Quantity, "
-        f"pint.Quantity, or Pint-format string; got {type(value).__name__}"
+        f"pint.Quantity, Pint-format string, or a bare number (lifted to dimensionless); "
+        f"got {type(value).__name__}"
     )
 
 

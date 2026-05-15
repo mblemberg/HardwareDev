@@ -91,11 +91,19 @@ class TestCoerceFieldQuantity:
         assert math.isclose(m.v_ds_max.to(V).at(), 30.0)
         assert math.isclose(m.i_d_max.to(A).at(), 5.0)
 
-    def test_bare_number_rejected(self) -> None:
-        with pytest.raises(pydantic.ValidationError) as exc_info:
-            _ToyMOSFET(part_number="X", rds_on=28, v_ds_max=30 * V, i_d_max=5 * A)
-        msg = str(exc_info.value)
-        assert "Quantity" in msg or "string" in msg
+    def test_bare_number_lifted_to_dimensionless(self) -> None:
+        # Bare numbers are accepted as dimensionless -- useful for ratios.
+        # Misuse on a dimensioned field surfaces later as a dimensionality
+        # error during arithmetic, not at construction.
+        m = _ToyMOSFET(part_number="X", rds_on=28, v_ds_max=30 * V, i_d_max=5 * A)
+        assert m.rds_on.unit.dimensionless
+        # Combining dimensionless with a real unit fails loudly later.
+        with pytest.raises(pint.DimensionalityError):
+            _ = m.rds_on + Constant(1.0, mA)
+
+    def test_bool_rejected(self) -> None:
+        with pytest.raises(pydantic.ValidationError):
+            _ToyMOSFET(part_number="X", rds_on=True, v_ds_max=30 * V, i_d_max=5 * A)  # type: ignore[arg-type]
 
     def test_optional_field_accepts_none(self) -> None:
         m = _ToyMOSFET(part_number="X", rds_on=28 * mOhm, v_ds_max=30 * V, i_d_max=5 * A)
