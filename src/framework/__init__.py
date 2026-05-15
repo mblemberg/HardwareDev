@@ -9,7 +9,10 @@ from framework._toml import TomlError
 from framework.component import Component, coerce_field_quantity
 from framework.contract import (
     ContractMeta,
+    ContractMismatch,
+    ContractViolation,
     CycleViolation,
+    check_contract_consistency,
     contract,
     detect_cycles,
     get_contract_meta,
@@ -32,6 +35,8 @@ __all__ = [
     "Component",
     "Constant",
     "ContractMeta",
+    "ContractMismatch",
+    "ContractViolation",
     "CurrentBudget",
     "CycleViolation",
     "Mode",
@@ -47,6 +52,7 @@ __all__ = [
     "SupplyEnvelope",
     "TempRange",
     "TomlError",
+    "check_contract_consistency",
     "coerce_field_quantity",
     "contract",
     "detect_cycles",

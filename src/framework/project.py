@@ -26,7 +26,11 @@ from hamilton.lifecycle import NodeExecutionHook
 import framework
 from framework._hashing import compute_node_hashes
 from framework.cache import Cache
-from framework.contract import detect_cycles
+from framework.contract import (
+    check_contract_consistency,
+    detect_cycles,
+    raise_on_mismatches,
+)
 from framework.modes import ModeSet, load_modes
 from framework.scenarios import ScenarioSet, load_scenarios
 
@@ -157,6 +161,7 @@ class Project:
         targets: list[str],
         inputs: Mapping[str, Any] | None = None,
         validate_contracts: bool = True,
+        check_contracts: bool = True,
     ) -> dict[str, Any]:
         """Build a Hamilton DAG from ``modules`` and compute ``targets``.
 
@@ -176,6 +181,15 @@ class Project:
         cross-block rule is enforced (a Contract may not depend on non-Contract
         outputs of other blocks). Pass ``validate_contracts=False`` to skip;
         useful for debugging.
+
+        Contract consistency (design doc 6.7 run-time rules): after Hamilton
+        executes, every Contract with ``compares_to=<node>`` set is compared
+        against that node's actual computed value at every scenario/mode point.
+        If any actual exceeds its declared bound, raises :class:`ContractViolation`
+        carrying the full mismatch list. To run this check the relevant
+        Contract node and its ``compares_to`` target must both be reachable —
+        the framework adds them to the DAG execution set automatically. Pass
+        ``check_contracts=False`` to skip.
         """
         if not modules:
             raise ValueError("Project.run requires at least one module")
@@ -189,36 +203,81 @@ class Project:
         if inputs:
             merged.update(inputs)
 
+        # Augment targets with every Contract + its compares_to actual so the
+        # consistency check has values to compare. Hamilton will pull through
+        # the rest of the DAG to satisfy them.
+        run_targets = list(targets)
+        if check_contracts:
+            extra = self._contract_check_targets(modules, set(targets), set(merged))
+            for name in extra:
+                if name not in run_targets:
+                    run_targets.append(name)
+
         if self._cache is None:
             dr = driver.Builder().with_modules(*modules).build()
-            return dr.execute(targets, inputs=merged)
+            results = dr.execute(run_targets, inputs=merged)
+        else:
+            # Content-address every node, then split into "served from cache"
+            # (overrides) vs "compute and write back" (lifecycle hook).
+            node_hashes = compute_node_hashes(
+                modules, dict(merged), framework_version=framework.__version__
+            )
+            overrides: dict[str, Any] = {}
+            misses: dict[str, str] = {}
+            input_names = set(merged.keys())
+            for name, h in node_hashes.items():
+                if name in input_names:
+                    continue
+                cached = self._cache.get(h)
+                if cached is not None:
+                    overrides[name] = cached
+                else:
+                    misses[name] = h
+            hook = _CacheWriteHook(self._cache, misses)
+            dr = (
+                driver.Builder()
+                .with_modules(*modules)
+                .with_adapters(hook)
+                .build()
+            )
+            results = dr.execute(run_targets, inputs=merged, overrides=overrides)
 
-        # Content-address every node, then split into "served from cache"
-        # (overrides) vs "compute and write back" (lifecycle hook).
-        node_hashes = compute_node_hashes(
-            modules, dict(merged), framework_version=framework.__version__
-        )
-        overrides: dict[str, Any] = {}
-        misses: dict[str, str] = {}
-        # Don't override input names — Hamilton accepts those via inputs=.
-        input_names = set(merged.keys())
-        for name, h in node_hashes.items():
-            if name in input_names:
-                continue
-            cached = self._cache.get(h)
-            if cached is not None:
-                overrides[name] = cached
-            else:
-                misses[name] = h
+        if check_contracts:
+            mismatches = check_contract_consistency(modules, results, strict=True)
+            raise_on_mismatches(mismatches)
 
-        hook = _CacheWriteHook(self._cache, misses)
-        dr = (
-            driver.Builder()
-            .with_modules(*modules)
-            .with_adapters(hook)
-            .build()
-        )
-        return dr.execute(targets, inputs=merged, overrides=overrides)
+        # Return only what the caller asked for (auto-added contract targets
+        # were an implementation detail).
+        return {k: results[k] for k in targets if k in results} if targets else results
+
+    @staticmethod
+    def _contract_check_targets(
+        modules: list[types.ModuleType],
+        existing_targets: set[str],
+        input_names: set[str],
+    ) -> list[str]:
+        """Names of contract + compares_to nodes to add to the run targets."""
+        from framework.contract import get_contract_meta, is_contract
+
+        extra: list[str] = []
+        for module in modules:
+            for attr in dir(module):
+                if attr.startswith("_"):
+                    continue
+                obj = getattr(module, attr, None)
+                if obj is None or not is_contract(obj):
+                    continue
+                if getattr(obj, "__module__", None) != module.__name__:
+                    continue
+                meta = get_contract_meta(obj)
+                if meta is None or meta.compares_to is None:
+                    continue
+                for name in (attr, meta.compares_to):
+                    if name in input_names or name in existing_targets:
+                        continue
+                    if name not in extra:
+                        extra.append(name)
+        return extra
 
     def list_nodes(self, modules: list[types.ModuleType]) -> list[str]:
         """Names of every node in the DAG built from ``modules``.

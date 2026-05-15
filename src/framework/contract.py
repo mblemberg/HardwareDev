@@ -33,7 +33,10 @@ import inspect
 import types
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import Any, Callable, TypeVar
+from typing import TYPE_CHECKING, Any, Callable, Iterator, TypeVar
+
+if TYPE_CHECKING:
+    from framework.quantity import Quantity, ScalarOrRange
 
 _T = TypeVar("_T", bound=Callable[..., Any])
 
@@ -45,6 +48,7 @@ class ContractMeta:
     description: str
     requirement: str | None = None
     assumed_inputs: dict[str, Any] = field(default_factory=dict)
+    compares_to: str | None = None
     function_name: str = ""
     block: str = ""
 
@@ -54,6 +58,7 @@ def contract(
     description: str,
     requirement: str | None = None,
     assumed_inputs: Mapping[str, Any] | None = None,
+    compares_to: str | None = None,
 ) -> Callable[[_T], _T]:
     """Mark a function as producing a Contract (design doc 6.7).
 
@@ -64,6 +69,11 @@ def contract(
             consumers will reference (e.g. ``{"rail_3v3_voltage":
             (3.15 * V, 3.45 * V)}``). These are *not* DAG inputs — they're
             the boundary conditions the contract's author commits to.
+        compares_to: Name of the DAG node that computes the *actual* value of
+            the same physical quantity. When set, :func:`Project.run` (or a
+            manual call to :func:`check_contract_consistency`) verifies that
+            the actual value lies within this Contract's declared bound for
+            every scenario/mode (design doc 6.7 run-time rules).
     """
 
     def decorator(fn: _T) -> _T:
@@ -71,6 +81,7 @@ def contract(
             description=description,
             requirement=requirement,
             assumed_inputs=dict(assumed_inputs) if assumed_inputs else {},
+            compares_to=compares_to,
             function_name=fn.__name__,
             block=block_of_function(fn),
         )
@@ -223,12 +234,252 @@ def _walk_contract_deps(
         )
 
 
+# ---------------------------------------------------------------------------
+# Run-time contract consistency (design doc 6.7 run-time rules)
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class ContractMismatch:
+    """One scenario/mode point where actual exceeds declared.
+
+    Returned in lists by :func:`check_contract_consistency`. ``actual`` and
+    ``declared`` are the raw values at that axis combination — scalars or
+    ``(lo, hi)`` range tuples, in the Contract's unit.
+    """
+
+    contract_name: str
+    block: str
+    scenario: str | None
+    mode: str | None
+    actual: "ScalarOrRange"
+    declared: "ScalarOrRange"
+    unit: str
+
+
+class ContractViolation(AssertionError):
+    """One or more Contracts' actual values exceeded their declared bounds.
+
+    Carries the full list of mismatches on ``.mismatches`` for programmatic
+    inspection (e.g. a pytest plugin that wants to surface each one as its
+    own test failure — design doc 6.7 calls for an auto-generated
+    ``ContractViolation`` verification test per Contract).
+    """
+
+    def __init__(self, mismatches: list[ContractMismatch]) -> None:
+        self.mismatches = mismatches
+        super().__init__(format_mismatches(mismatches))
+
+
+def format_mismatches(mismatches: list[ContractMismatch]) -> str:
+    """Human-readable summary of contract-consistency mismatches."""
+    if not mismatches:
+        return "no contract mismatches"
+    lines = [f"{len(mismatches)} contract mismatch(es):"]
+    for m in mismatches:
+        where: list[str] = []
+        if m.scenario is not None and m.scenario != "_":
+            where.append(f"scenario={m.scenario!r}")
+        if m.mode is not None:
+            where.append(f"mode={m.mode!r}")
+        loc = ", ".join(where) if where else "(no axes)"
+        lines.append(
+            f"  - {m.contract_name!r} ({m.block}) at {loc}: "
+            f"actual={m.actual} {m.unit} exceeds declared={m.declared} {m.unit}"
+        )
+    return "\n".join(lines)
+
+
+def check_contract_consistency(
+    modules: list[types.ModuleType],
+    results: Mapping[str, Any],
+    *,
+    strict: bool = False,
+) -> list[ContractMismatch]:
+    """For each Contract with ``compares_to`` set, compare actual vs declared.
+
+    Walks every ``@contract``-marked function in ``modules``. For those with a
+    ``compares_to`` target, looks up that node's value in ``results``, then
+    looks up the Contract's own value in ``results``, and verifies that the
+    actual lies within the declared bound at every (scenario, mode) point.
+
+    Returns a list of :class:`ContractMismatch` records — empty if all
+    consistent. Use :func:`raise_on_mismatches` to convert to an exception.
+
+    Contracts without ``compares_to`` are skipped (the Contract is a
+    declaration only; no actual to compare against). Contracts whose own
+    value or ``compares_to`` target is absent from ``results`` are skipped by
+    default — pass ``strict=True`` to raise instead (used internally by
+    :class:`Project` since it auto-adds the relevant targets).
+    """
+    from framework.quantity import Quantity  # local import to avoid cycle
+
+    nodes = _collect_nodes(modules)
+    mismatches: list[ContractMismatch] = []
+    for name, info in nodes.items():
+        if not info.is_contract:
+            continue
+        meta = get_contract_meta(info.fn)
+        assert meta is not None
+        target = meta.compares_to
+        if target is None:
+            continue
+        if name not in results:
+            if strict:
+                raise ValueError(
+                    f"Contract {name!r} declared compares_to={target!r}, but "
+                    f"its own value is not in results."
+                )
+            continue
+        if target not in results:
+            if strict:
+                raise ValueError(
+                    f"Contract {name!r} declared compares_to={target!r}, but "
+                    f"{target!r} is not in results."
+                )
+            continue
+        declared = results[name]
+        actual = results[target]
+        if not isinstance(declared, Quantity):
+            raise TypeError(
+                f"Contract {name!r} returned {type(declared).__name__}, "
+                f"expected framework.Quantity"
+            )
+        if not isinstance(actual, Quantity):
+            raise TypeError(
+                f"compares_to target {target!r} returned "
+                f"{type(actual).__name__}, expected framework.Quantity"
+            )
+        mismatches.extend(
+            _compare_quantities(
+                contract_name=name,
+                block=info.block,
+                actual=actual,
+                declared=declared,
+            )
+        )
+    return mismatches
+
+
+def raise_on_mismatches(mismatches: list[ContractMismatch]) -> None:
+    """Raise :class:`ContractViolation` if ``mismatches`` is non-empty."""
+    if mismatches:
+        raise ContractViolation(mismatches)
+
+
+def _compare_quantities(
+    *,
+    contract_name: str,
+    block: str,
+    actual: "Quantity",
+    declared: "Quantity",
+) -> list[ContractMismatch]:
+    """Per-axis comparison: every actual point must lie within declared's range."""
+    from framework.quantity import Quantity, _as_range  # local import
+
+    # Convert actual into declared's unit so comparisons are unit-correct.
+    if actual.unit != declared.unit:
+        actual = actual.to(declared.unit)
+
+    mismatches: list[ContractMismatch] = []
+    for scenario, mode, value in _iter_axes(actual):
+        try:
+            d_value = _evaluate_at(declared, scenario=scenario, mode=mode)
+        except KeyError as e:
+            # Declared is missing this axis combination — that's an authoring
+            # problem (the Contract didn't promise anything at this point).
+            raise ValueError(
+                f"Contract {contract_name!r}: actual carries "
+                f"(scenario={scenario!r}, mode={mode!r}) but the Contract "
+                f"doesn't declare a bound there. {e}"
+            ) from e
+        a_lo, a_hi = _as_range(value)
+        d_lo, d_hi = _as_range(d_value)
+        if a_lo < d_lo or a_hi > d_hi:
+            mismatches.append(
+                ContractMismatch(
+                    contract_name=contract_name,
+                    block=block,
+                    scenario=scenario,
+                    mode=mode,
+                    actual=value,
+                    declared=d_value,
+                    unit=str(declared.unit),
+                )
+            )
+    return mismatches
+
+
+def _iter_axes(
+    q: "Quantity",
+) -> Iterator[tuple[str | None, str | None, "ScalarOrRange"]]:
+    """Yield (scenario, mode, value) for every axis combination on ``q``."""
+    if q.by_mode is not None:
+        for mode, child in q.by_mode.items():
+            for s, _ignored, v in _iter_axes(child):
+                yield (s, mode, v)
+        return
+    if q.by_scenario is not None:
+        for s, v in q.by_scenario.items():
+            yield (s, None, v)
+        return
+    assert q.nominal is not None
+    yield (None, None, q.nominal)
+
+
+def _evaluate_at(
+    q: "Quantity", *, scenario: str | None, mode: str | None
+) -> "ScalarOrRange":
+    """``Quantity.at`` but tolerant of missing axes on the *declared* side.
+
+    The declared Contract may be mode-less even if the actual is mode-keyed
+    (one bound covers all modes), and similarly scenario-less. This helper
+    silently descends through whichever axes the declared carries.
+    """
+    if q.by_mode is not None:
+        if mode is None:
+            raise KeyError(
+                f"declared Quantity is mode-keyed (modes={list(q.by_mode)}), "
+                f"but actual has no mode axis"
+            )
+        if mode not in q.by_mode:
+            raise KeyError(
+                f"mode {mode!r} not in declared modes {list(q.by_mode)}"
+            )
+        return _evaluate_at(q.by_mode[mode], scenario=scenario, mode=None)
+    if q.by_scenario is not None:
+        if scenario is not None and scenario in q.by_scenario:
+            return q.by_scenario[scenario]
+        if "_" in q.by_scenario:
+            return q.by_scenario["_"]
+        if scenario is None:
+            # Only one entry and it isn't INVARIANT — accept it as the bound.
+            if len(q.by_scenario) == 1:
+                return next(iter(q.by_scenario.values()))
+            raise KeyError(
+                f"declared Quantity is scenario-keyed "
+                f"(scenarios={list(q.by_scenario)}), but actual has no "
+                f"scenario axis at this point"
+            )
+        raise KeyError(
+            f"scenario {scenario!r} not in declared scenarios "
+            f"{list(q.by_scenario)}"
+        )
+    assert q.nominal is not None
+    return q.nominal
+
+
 __all__ = [
     "ContractMeta",
+    "ContractMismatch",
+    "ContractViolation",
     "CycleViolation",
     "block_of_function",
+    "check_contract_consistency",
     "contract",
     "detect_cycles",
+    "format_mismatches",
     "get_contract_meta",
     "is_contract",
+    "raise_on_mismatches",
 ]

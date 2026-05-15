@@ -54,12 +54,15 @@ Scenario context keys that appear in *every* loaded scenario become auto-supplie
 ### 6. NotebookEdit vs VS Code auto-save
 If a `.ipynb` is open in VS Code, VS Code will auto-save its in-memory copy and clobber NotebookEdit changes. Ask the user to close the notebook before editing.
 
+### 7. `Project.run` runs the contract consistency check automatically
+After Hamilton executes, every `@contract` with `compares_to=<actual node>` is compared against the named actual at every (scenario, mode) point — `ContractViolation` is raised on the first mismatch. The framework auto-augments the run targets so the contract and its actual both end up in `results` even when the caller only asks for one. Pass `check_contracts=False` to bypass (debugging only). For unit tests of partial results without that wiring, call `check_contract_consistency(modules, results)` directly — it skips missing targets unless you pass `strict=True`.
+
 ## Dev workflow
 
 ```powershell
 # from this directory:
 poetry install -E "dev notebooks"
-poetry run pytest                       # 184+ tests
+poetry run pytest                       # 241 tests as of step 8
 poetry run pytest --cov                 # coverage report
 poetry run mypy                         # strict on src/framework
 ```
