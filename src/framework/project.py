@@ -26,6 +26,7 @@ from hamilton.lifecycle import NodeExecutionHook
 import framework
 from framework._hashing import compute_node_hashes
 from framework.cache import Cache
+from framework.contract import detect_cycles
 from framework.modes import ModeSet, load_modes
 from framework.scenarios import ScenarioSet, load_scenarios
 
@@ -155,6 +156,7 @@ class Project:
         modules: list[types.ModuleType],
         targets: list[str],
         inputs: Mapping[str, Any] | None = None,
+        validate_contracts: bool = True,
     ) -> dict[str, Any]:
         """Build a Hamilton DAG from ``modules`` and compute ``targets``.
 
@@ -168,11 +170,20 @@ class Project:
         each. Hits are supplied to Hamilton via ``overrides=`` so the function
         body never runs; misses are computed normally and written back to the
         cache via a post-execute hook.
+
+        Contract cycle detection (design doc 7.4): before Hamilton runs, every
+        ``@contract``-marked function's dependency subgraph is walked and the
+        cross-block rule is enforced (a Contract may not depend on non-Contract
+        outputs of other blocks). Pass ``validate_contracts=False`` to skip;
+        useful for debugging.
         """
         if not modules:
             raise ValueError("Project.run requires at least one module")
         if not targets:
             raise ValueError("Project.run requires at least one target name")
+
+        if validate_contracts:
+            detect_cycles(modules)
 
         merged: dict[str, Any] = self.standard_inputs()
         if inputs:
