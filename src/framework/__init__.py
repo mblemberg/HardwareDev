@@ -22,6 +22,12 @@ from framework.modes import Mode, ModeSet, load_modes
 from framework.project import Project
 from framework.provenance import ProvenanceRef
 from framework.quantity import Constant, Quantity, RangeQuantity
+from framework.reports import (
+    results_to_html_table,
+    results_to_jama_records,
+    results_to_markdown_table,
+    results_to_pr_comment,
+)
 from framework.requirements import (
     CurrentBudget,
     Performance,
@@ -36,9 +42,11 @@ from framework.verification import (
     TestResult,
     VerificationContext,
     VerificationMeta,
+    collect_verification_tests,
     format_results,
     get_verification_meta,
     is_verification_test,
+    run_verification_for_pytest,
     run_verifications,
     verification_test,
 )
@@ -71,6 +79,7 @@ __all__ = [
     "VerificationMeta",
     "check_contract_consistency",
     "coerce_field_quantity",
+    "collect_verification_tests",
     "contract",
     "detect_cycles",
     "format_results",
@@ -81,6 +90,11 @@ __all__ = [
     "load_modes",
     "load_scenarios",
     "requirements",
+    "results_to_html_table",
+    "results_to_jama_records",
+    "results_to_markdown_table",
+    "results_to_pr_comment",
+    "run_verification_for_pytest",
     "run_verifications",
     "units",
     "verification_test",

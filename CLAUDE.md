@@ -63,12 +63,15 @@ Verification-test functions take a single `ctx: VerificationContext` and return 
 ### 9. `Quantity.iter_axes()` is the cross-axis iteration primitive
 Yields `(scenario, mode, value)` for every leaf in the by_mode × by_scenario × nominal axis tree. Used by both the contract-consistency check (step 8) and verification assertion helpers (step 9a) to enumerate failing corners. Promoted from a private `_iter_axes` in `contract.py` when 9a needed it too — when you want "do something at every (scenario, mode) point this Quantity carries", use this.
 
+### 10. pytest helpers vs the framework's own pytest run
+The framework's `tests/` runs against `hw_analysis_framework/.venv`; example_analysis has its own `tests/` (no separate venv — uses the framework's). Don't be surprised that the framework's `pytest` doesn't pick up `example_analysis/tests/test_verifications.py` — different working directories, different `pytest.ini_options`. To run the example's verification suite: `cd ../example_analysis && ../hw_analysis_framework/.venv/Scripts/python.exe -m pytest tests/`. The example's thermal verification is *designed* to fail (it surfaces the worked example's T_J overshoot at `hot_high_vin`); a "1 failed, 1 passed" exit code is the correct steady state until the block author derates the design.
+
 ## Dev workflow
 
 ```powershell
 # from this directory:
 poetry install -E "dev notebooks"
-poetry run pytest                       # 264 tests as of step 9a
+poetry run pytest                       # 289 tests as of step 9c
 poetry run pytest --cov                 # coverage report
 poetry run mypy                         # strict on src/framework
 ```
@@ -90,7 +93,8 @@ src/framework/
   project.py        # Project orchestrator + Hamilton driver
   contract.py       # @contract + ContractMeta + detect_cycles + check_contract_consistency
   component.py      # Component base + coerce_field_quantity validator
-  verification.py   # @verification_test + TestResult + VerificationContext + run_verifications
+  verification.py   # @verification_test + TestResult + VerificationContext + run_verifications + pytest helpers
+  reports.py        # results_to_{markdown,html,pr_comment,jama_records} output channels
   cache.py / _hashing.py  # content-addressed cache for DAG nodes
   provenance.py     # ProvenanceRef stub (full impl is step 10)
   _toml.py          # internal: Pint-string parsing with precise error locations

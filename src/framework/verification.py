@@ -110,6 +110,8 @@ class TestResult:
     evidence: dict[str, Any] = field(default_factory=dict)
     margin: Quantity | None = None
     report_markdown: str = ""
+    requirement: str | None = None
+    block: str = ""
 
     def summary(self) -> str:
         """One-line summary for table rendering."""
@@ -310,13 +312,22 @@ class VerificationContext:
     ) -> TestResult:
         if name is None:
             name = self._meta.name if self._meta else "unnamed"
-        severity = self._meta.severity if self._meta else Severity.CRITICAL
+        if self._meta is not None:
+            severity = self._meta.severity
+            requirement = self._meta.requirement
+            block = self._meta.block
+        else:
+            severity = Severity.CRITICAL
+            requirement = None
+            block = ""
         return TestResult(
             name=name,
             passed=passed,
             severity=severity,
             failed_at=failed_at,
             evidence=evidence,
+            requirement=requirement,
+            block=block,
         )
 
 
@@ -376,15 +387,99 @@ def format_results(results: Mapping[str, TestResult]) -> str:
     return "\n".join(r.summary() for r in rows)
 
 
+# ---------------------------------------------------------------------------
+# pytest integration (step 9b)
+# ---------------------------------------------------------------------------
+
+
+def collect_verification_tests(modules: list[types.ModuleType]) -> list[Callable[..., TestResult]]:
+    """Discover every ``@verification_test`` function in ``modules``.
+
+    Returns them in (block, name) order for stable pytest test-IDs across
+    runs. Use with ``pytest.mark.parametrize`` to expand them into one
+    pytest item per test::
+
+        TESTS = collect_verification_tests([blocks.can_transceiver.verifications])
+
+        @pytest.mark.parametrize(
+            "test_fn", TESTS,
+            ids=lambda f: f.__verification_meta__.name,
+        )
+        def test_verification(test_fn, verification_results):
+            run_verification_for_pytest(test_fn, verification_results)
+    """
+    tests: list[tuple[str, str, Callable[..., TestResult]]] = []
+    for module in modules:
+        for attr in dir(module):
+            if attr.startswith("_"):
+                continue
+            obj = getattr(module, attr, None)
+            if not is_verification_test(obj):
+                continue
+            if getattr(obj, "__module__", None) != module.__name__:
+                continue
+            meta = get_verification_meta(obj)
+            assert meta is not None
+            tests.append((meta.block, meta.name, obj))
+    tests.sort(key=lambda t: (t[0], t[1]))
+    return [t[2] for t in tests]
+
+
+def run_verification_for_pytest(
+    test_fn: Callable[..., TestResult],
+    results: Mapping[str, Any],
+) -> TestResult:
+    """Run one ``@verification_test`` and map failure to pytest's verdict.
+
+    Severity ``CRITICAL`` → ``pytest.fail`` (hard fail, CI breaks).
+    Severity ``WARNING``  → ``pytest.xfail`` (expected failure, CI green).
+    Severity ``INFO``     → ``pytest.skip`` (informational, CI green).
+    Passes return the ``TestResult`` for inspection.
+
+    pytest is an optional import — only required if you actually call this.
+    """
+    if not is_verification_test(test_fn):
+        raise TypeError(
+            f"{test_fn!r} is not a @verification_test (missing marker)."
+        )
+    meta = get_verification_meta(test_fn)
+    assert meta is not None
+    ctx = VerificationContext(results, meta=meta)
+    result = test_fn(ctx)
+    if not isinstance(result, TestResult):
+        raise TypeError(
+            f"Verification test {meta.function_name!r} returned "
+            f"{type(result).__name__}, expected framework.TestResult"
+        )
+    if result.passed:
+        return result
+
+    corners = "; ".join(str(c) for c in result.failed_at) or "(unspecified)"
+    msg = f"{result.name} failed at: {corners}"
+    if meta.requirement:
+        msg = f"[{meta.requirement}] {msg}"
+
+    import pytest  # imported here so 'pytest' is optional for non-test users
+    if result.severity is Severity.INFO:
+        pytest.skip(msg)
+    elif result.severity is Severity.WARNING:
+        pytest.xfail(msg)
+    else:
+        pytest.fail(msg, pytrace=False)
+    return result  # unreachable; satisfies the type checker
+
+
 __all__ = [
     "ScenarioMode",
     "Severity",
     "TestResult",
     "VerificationContext",
     "VerificationMeta",
+    "collect_verification_tests",
     "format_results",
     "get_verification_meta",
     "is_verification_test",
+    "run_verification_for_pytest",
     "run_verifications",
     "verification_test",
 ]

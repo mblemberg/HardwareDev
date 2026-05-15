@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import types
+from typing import Callable
 
 import pytest
 
@@ -13,9 +14,11 @@ from framework import (
     Severity,
     TestResult,
     VerificationContext,
+    collect_verification_tests,
     format_results,
     get_verification_meta,
     is_verification_test,
+    run_verification_for_pytest,
     run_verifications,
     verification_test,
 )
@@ -285,3 +288,87 @@ class TestFormatResults:
         lines = out.splitlines()
         assert lines[0].startswith("FAIL")
         assert lines[1].startswith("PASS")
+
+
+# ---------------------------------------------------------------------------
+# 9b: pytest helpers — collect + run_for_pytest
+# ---------------------------------------------------------------------------
+
+
+class TestCollect:
+    def _mod(self, name: str) -> types.ModuleType:
+        return types.ModuleType(name)
+
+    def test_collects_all_in_stable_order(self) -> None:
+        mod = self._mod("collect_test")
+
+        @verification_test(name="zebra")
+        def z(ctx) -> TestResult:
+            return TestResult(name="zebra", passed=True)
+
+        @verification_test(name="alpha")
+        def a(ctx) -> TestResult:
+            return TestResult(name="alpha", passed=True)
+
+        z.__module__ = "collect_test"
+        a.__module__ = "collect_test"
+        mod.z = z
+        mod.a = a
+        out = collect_verification_tests([mod])
+        # Sorted by (block, name); both share block "collect_test", so by name.
+        names = [t.__verification_meta__.name for t in out]
+        assert names == ["alpha", "zebra"]
+
+    def test_skips_re_exports(self) -> None:
+        mod_owner = self._mod("c_owner")
+        mod_borrower = self._mod("c_borrower")
+
+        @verification_test(name="lives_in_owner")
+        def t(ctx) -> TestResult:
+            return TestResult(name="lives_in_owner", passed=True)
+
+        t.__module__ = "c_owner"
+        mod_owner.t = t
+        mod_borrower.t = t
+        assert collect_verification_tests([mod_borrower]) == []
+
+
+class TestRunForPytest:
+    def _passing(self) -> Callable:
+        @verification_test(name="p")
+        def t(ctx) -> TestResult:
+            return TestResult(name="p", passed=True)
+        t.__module__ = "rfp"
+        return t
+
+    def _failing(self, severity: Severity) -> Callable:
+        @verification_test(name="f", severity=severity, requirement="REQ-X")
+        def t(ctx) -> TestResult:
+            return TestResult(
+                name="f", passed=False, severity=severity,
+                failed_at=(ScenarioMode(mode="hot"),),
+            )
+        t.__module__ = "rfp"
+        return t
+
+    def test_pass_returns_result(self) -> None:
+        r = run_verification_for_pytest(self._passing(), {})
+        assert r.passed
+
+    def test_critical_failure_calls_pytest_fail(self) -> None:
+        with pytest.raises(pytest.fail.Exception, match=r"REQ-X.*hot"):
+            run_verification_for_pytest(self._failing(Severity.CRITICAL), {})
+
+    def test_warning_failure_calls_xfail(self) -> None:
+        with pytest.raises(pytest.xfail.Exception):
+            run_verification_for_pytest(self._failing(Severity.WARNING), {})
+
+    def test_info_failure_calls_skip(self) -> None:
+        with pytest.raises(pytest.skip.Exception):
+            run_verification_for_pytest(self._failing(Severity.INFO), {})
+
+    def test_non_test_function_rejected(self) -> None:
+        def not_decorated(ctx) -> TestResult:  # type: ignore[no-untyped-def]
+            return TestResult(name="x", passed=True)
+        with pytest.raises(TypeError, match="not a @verification_test"):
+            run_verification_for_pytest(not_decorated, {})
