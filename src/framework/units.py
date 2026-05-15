@@ -18,6 +18,14 @@ import pint
 registry: pint.UnitRegistry = pint.UnitRegistry()
 registry.formatter.default_format = "~P"
 
+# Pint serializes quantities by unit *name*. On unpickle, pint looks up the
+# name in the "application registry" -- which by default is the registry of
+# the unpickling module, not the one that pickled the value. That causes
+# "Cannot operate with Unit and Unit of different registries" errors when a
+# cached Quantity is loaded and combined with a freshly constructed one.
+# Pinning the application registry to ours globally fixes this.
+pint.set_application_registry(registry)
+
 # Voltage
 V = registry.volt
 mV = registry.millivolt

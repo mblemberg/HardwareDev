@@ -34,7 +34,7 @@ coverage.xml
 .dmypy.json
 .pyre/
 
-# Framework
+# Framework cache (design doc 8) — content-addressed; safe to delete
 .framework_cache/
 
 # IDE

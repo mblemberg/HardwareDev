@@ -2,6 +2,8 @@
 
 Curated re-exports per design doc section 11 (framework.__all__).
 """
+
+__version__ = "0.0.1"
 from framework import requirements, units
 from framework._toml import TomlError
 from framework.modes import Mode, ModeSet, load_modes
