@@ -27,7 +27,8 @@ blocks/
     leaves.py            # hand-coded leaf Quantities (datasheet values, mode-dependent currents)
     analysis.py          # derived nodes; Hamilton wires by parameter name
     contracts.py         # public Contracts (declared bounds) — design doc 6.7
-    # future: verifications.py (step 9), report.ipynb (step 12)
+    verifications.py     # @verification_test functions — design doc 6.8 / step 9a
+    # future: report.ipynb (step 12)
 can_transceiver_analysis.ipynb   # end-to-end demo: load project, run DAG, render results
 ```
 
@@ -48,7 +49,8 @@ Point VS Code's Jupyter kernel selector at that path. The framework is editable-
 3. In `analysis.py`, write functions whose parameter names match either other functions' names (= depends on those) or project inputs. Hamilton wires them.
 4. From a notebook or script: `project.run(modules=[<name>.leaves, <name>.analysis], targets=[...], inputs={...})`.
 5. Add `contracts.py` for cross-block consumption — each Contract returns its *declared* bound and points `compares_to="<actual node>"` at the local computed value. `Project.run` auto-verifies actual ⊆ declared per scenario/mode and raises `ContractViolation` on mismatch.
-6. (Future) `verifications.py` for spec checks (step 9), `report.ipynb` from the template (step 12).
+6. Add `verifications.py` for formal spec checks — each `@verification_test` takes a `VerificationContext`, calls `ctx.assert_quantity_below(...)` (or `_in` / `_above`), returns a `TestResult` listing the exact (scenario, mode) corners where it failed. Run with `run_verifications([verifications], results)`.
+7. (Future) `report.ipynb` from the template (step 12).
 
 ## Patterns worth knowing
 
@@ -63,6 +65,9 @@ For requirements that derate by environmental corner (ADC accuracy at -40 / 25 /
 
 ### Declared-vs-actual pattern in Contracts
 A `@contract` function returns the *declared* commitment (typically a mode-keyed range with headroom above the datasheet maxes). The matching `compares_to="<actual node>"` names the local DAG node that computes the *actual* — usually a leaf or an `analysis.py` function. `Project.run` runs the consistency check automatically after Hamilton execute and raises `ContractViolation` on the first mismatch. See `blocks/can_transceiver/contracts.py::can_5v_draw` for the worked pattern.
+
+### `@verification_test` is the formal version of a manual `.within(...)` check
+Where `Quantity.within(lo, hi)` returns just `True`/`False`, a `@verification_test` carries a name, Jama requirement ID, severity, and returns a `TestResult` listing the exact failing corners. The runner is `run_verifications([verifications], results)`; same function feeds the pytest plugin (step 9b) and the report channels (step 9c) once those land. The notebook's section 6 is the worked pattern — it surfaces the T_J failure at `hot_high_vin / {active, diagnostic}` automatically rather than via hand-rolled iteration.
 
 ## Don'ts
 
