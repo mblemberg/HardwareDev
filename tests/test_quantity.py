@@ -235,6 +235,26 @@ class TestScalarArithmetic:
         q = Constant(3.3, V) / Constant(1.5, mA)
         assert math.isclose(q.to(kOhm).at(), 2.2)
 
+    def test_mul_by_plain_number_keeps_unit(self) -> None:
+        # Regression for the 2026-05-16 _binop fix: Q(5 V) * 2 should be 10 V,
+        # not 10 V² (the old code lifted bare numbers to left.unit for both
+        # additive and multiplicative ops, squaring the dimension).
+        q = Constant(5.0, V) * 2
+        assert math.isclose(q.at(), 10.0)
+        assert q.unit == V
+
+    def test_div_by_plain_number_keeps_unit(self) -> None:
+        q = Constant(10.0, V) / 2
+        assert math.isclose(q.at(), 5.0)
+        assert q.unit == V
+
+    def test_mul_by_float_in_chain(self) -> None:
+        # The original bug surface: a multi-step expression where a float
+        # appears mid-chain.
+        q = Constant(1.0, A) ** 2 * Constant(0.1, Ohm) * 1.0
+        # I²·R = power in watts. 1² · 0.1 = 0.1 W.
+        assert math.isclose(q.to(units.mW).at(), 100.0)
+
     def test_pow_int(self) -> None:
         q = Constant(2.0, V) ** 2
         assert math.isclose(q.at(), 4.0)

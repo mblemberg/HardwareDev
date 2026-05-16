@@ -4,7 +4,7 @@ Curated re-exports per design doc section 11 (framework.__all__).
 """
 
 __version__ = "0.0.1"
-from framework import requirements, units
+from framework import analyses, requirements, units
 from framework._toml import TomlError
 from framework.component import Component, coerce_field_quantity
 from framework.contract import (
@@ -87,6 +87,7 @@ __all__ = [
     "TruthTableMismatch",
     "VerificationContext",
     "VerificationMeta",
+    "analyses",
     "check_contract_assumptions",
     "check_contract_consistency",
     "coerce_field_quantity",

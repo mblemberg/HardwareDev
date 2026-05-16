@@ -403,11 +403,20 @@ def _binop(
     range_op,
     unit_op,
 ) -> "Quantity":
-    # For multiplicative ops, dimensionless lift is the right semantics for plain
-    # numbers; for additive ops, we treat plain numbers as "already in left.unit".
-    # Caller passes the appropriately-lifted operand; we still accept raw to handle
-    # the common Quantity-on-left case.
-    right = _lift(right_raw, left.unit) if not isinstance(right_raw, Quantity) else right_raw
+    # Bare-number lifting depends on the operation:
+    #   - Additive (+/-): treat the number as already-in-left's-unit. ``Q(5 V) + 1``
+    #     means 6 V, not 5 V + 1 of any other unit.
+    #   - Multiplicative (*, /): treat the number as dimensionless. ``Q(5 V) * 2``
+    #     means 10 V, not 10 V². Latent bug found 2026-05-16: __mul__ / __truediv__
+    #     used to hit the additive branch via _lift(value, left.unit), which
+    #     squared the unit (10 V * 1.0 → 10 V²). All multiplicative bare-number
+    #     ops now go through _lift_dimensionless.
+    if isinstance(right_raw, Quantity):
+        right = right_raw
+    elif unit_op is _add_units:
+        right = _lift(right_raw, left.unit)
+    else:
+        right = _lift_dimensionless(right_raw)
 
     # Convert right into left's unit *for additive ops* (where unit_op == _add_units).
     if unit_op is _add_units:
