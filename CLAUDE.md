@@ -80,11 +80,19 @@ Notebook section 6 demonstrates the HTML table + PR-comment render. The thermal 
 1. Write `blocks/<name>/verifications.py` with `@verification_test` functions.
 2. Add an import to `tests/test_verifications.py::_all_block_verifications` so the parametrize sees it. (Manual for now — auto-discovery is a small follow-on if multiple blocks land.)
 
+### Block ownership: one engineer per page, one publisher per physical thing
+Each schematic page has one owner. That owner's block is the **only place** Contracts get published about nets and components that primarily live on that page. If you want to declare `vout_3v3` and the buck regulator sits on someone else's page, the contract belongs in *their* block — talk to them, don't fork the analysis. Multi-page nets (a bus crossing pages) require a human pick on which block owns the contract.
+
+This is what prevents two engineers from independently publishing disagreeing analyses of the same physical rail. The framework's cycle-cut rule constrains *consumption* (you can't reach past another block's contract); the ownership rule constrains *production* (you can't publish contracts about another block's physical things). Until step 6 (netlist parser) lands and ownership becomes mechanically enforceable via refdes-to-block mapping, this is a code-review concern.
+
+When in doubt about a multi-page net, pick the page where the net is most *defined* (the page that creates it / sets its voltage), not the pages it merely passes through.
+
 ## Don'ts
 
-- Don't define `__init__.py` content beyond re-exports. Per design doc 6.6, `blocks/<name>/__init__.py` will re-export public Contracts (step 7) and **nothing else**. Internals stay private.
-- Don't import another block's non-Contract symbols. The future cycle detector (step 7) will refuse imports of non-Contract names across blocks.
-- Don't hand-edit the cached state in `.framework_cache/` once step 4b lands — it's content-addressed; the framework owns it.
+- Don't define `__init__.py` content beyond re-exports. Per design doc 6.6, `blocks/<name>/__init__.py` re-exports public Contracts and **nothing else**. Internals stay private.
+- Don't import another block's non-Contract symbols. The cycle detector refuses imports of non-Contract names across blocks (build-time, before `project.run`).
+- Don't publish Contracts about another block's nets or components — see the ownership rule above. Talk to the owner instead.
+- Don't hand-edit the cached state in `.framework_cache/` — it's content-addressed; the framework owns it.
 
 ## Verifying changes locally
 
