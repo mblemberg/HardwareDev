@@ -172,6 +172,32 @@ class TestRun:
         with pytest.raises(ValueError, match="at least one target"):
             p.run(modules=[leaves, analysis], targets=[])
 
+    def test_return_all_computed_includes_auto_augmented_contract_nodes(self) -> None:
+        # Project.run auto-adds Contracts + compares_to + Quantity-valued
+        # assumed_inputs to the execute set for the consistency checks, then
+        # filters them out of the return. return_all_computed=True preserves
+        # them so the design-review renderers see the full surface.
+        from consistency_ok_block import contracts, leaves
+
+        p = Project(
+            scenarios=ScenarioSet(scenarios=[]),
+            modes=ModeSet(modes=[]),
+            cache_dir=None,
+        )
+        # Caller only asks for the Contract; compares_to actual was implicit.
+        default_result = p.run(
+            modules=[contracts, leaves],
+            targets=["declared_ok"],
+        )
+        full_result = p.run(
+            modules=[contracts, leaves],
+            targets=["declared_ok"],
+            return_all_computed=True,
+        )
+        assert set(default_result) == {"declared_ok"}
+        assert "actual_draw" in full_result
+        assert "declared_ok" in full_result
+
 
 # ---------------------------------------------------------------------------
 # Introspection

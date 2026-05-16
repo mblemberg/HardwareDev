@@ -66,7 +66,10 @@ Yields `(scenario, mode, value)` for every leaf in the by_mode × by_scenario ×
 ### 10. Provenance attaches at Project.run time, not at Quantity construction
 `Project.run` builds a per-invocation `ProvenanceGraph` from the same module walk that the cache layer uses, then recursively rewrites every result Quantity's `provenance` field via `dataclasses.replace` (Quantity is frozen). Children of a `by_mode` parent inherit the parent's node_id — drilling into `q.by_mode["active"]` still gives you a useful chain. *Arithmetic Quantities created downstream of `Project.run` carry the default `<literal>` provenance* — promoting provenance through `+ - * /` would require threading it through `_binop`, which is a future change. Use the chain on top-level results, not on values you derived afterward.
 
-### 11. pytest helpers vs the framework's own pytest run
+### 11. Design-review renderers need `return_all_computed=True`
+`block_report_html` / `project_report_html` walk the full set of nodes that Hamilton computed for a `Project.run` invocation — including Contracts, their `compares_to` actuals, and any Quantity-valued `assumed_inputs` keys auto-augmented for the consistency checks. By default `Project.run` filters those out of the return (they're an implementation detail of the consistency check). Pass `return_all_computed=True` to keep them — that's what the template notebook does, and what the design-review reports need to render the declared-vs-actual status column. The renderer degrades gracefully (`"Actual node X not in results"`) if you forget, but the status badges won't appear.
+
+### 12. pytest helpers vs the framework's own pytest run
 The framework's `tests/` runs against `hw_analysis_framework/.venv`; example_analysis has its own `tests/` (no separate venv — uses the framework's). Don't be surprised that the framework's `pytest` doesn't pick up `example_analysis/tests/test_verifications.py` — different working directories, different `pytest.ini_options`. To run the example's verification suite: `cd ../example_analysis && ../hw_analysis_framework/.venv/Scripts/python.exe -m pytest tests/`. The example's thermal verification is *designed* to fail (it surfaces the worked example's T_J overshoot at `hot_high_vin`); a "1 failed, 1 passed" exit code is the correct steady state until the block author derates the design.
 
 ## Dev workflow

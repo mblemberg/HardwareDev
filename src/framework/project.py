@@ -165,6 +165,7 @@ class Project:
         validate_contracts: bool = True,
         check_contracts: bool = True,
         attach_provenance_to_results: bool = True,
+        return_all_computed: bool = False,
     ) -> dict[str, Any]:
         """Build a Hamilton DAG from ``modules`` and compute ``targets``.
 
@@ -193,6 +194,15 @@ class Project:
         Contract node and its ``compares_to`` target must both be reachable —
         the framework adds them to the DAG execution set automatically. Pass
         ``check_contracts=False`` to skip.
+
+        Return shape: by default the return dict is filtered down to the
+        caller's ``targets`` (auto-augmented Contract / ``compares_to`` /
+        ``assumed_inputs`` nodes are an implementation detail). Pass
+        ``return_all_computed=True`` to receive everything Hamilton computed
+        for this run — useful for the design-review renderers
+        (:func:`framework.block_report_html` / :func:`framework.project_report_html`),
+        which need the full declared+actual+assumed surface to render the
+        contracts table.
         """
         if not modules:
             raise ValueError("Project.run requires at least one module")
@@ -272,6 +282,8 @@ class Project:
             mismatches.extend(check_contract_assumptions(modules, results))
             raise_on_mismatches(mismatches)
 
+        if return_all_computed:
+            return dict(results)
         # Return only what the caller asked for (auto-added contract targets
         # were an implementation detail).
         return {k: results[k] for k in targets if k in results} if targets else results
