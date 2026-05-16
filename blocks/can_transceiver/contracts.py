@@ -19,17 +19,20 @@ Pattern (design doc 6.7):
 from __future__ import annotations
 
 from framework import Quantity, RangeQuantity, contract
-from framework.units import mA
+from framework.units import V, mA
 
 
 @contract(
     description="Block's draw from the 5V CAN rail",
     requirement="REQ-PWR-005",
     assumed_inputs={
-        # The block assumes the rail stays within this window. The power-supply
-        # block must guarantee it via its own Contract; cross-block assumption
-        # validation is a follow-up to step 8.
-        "can_5v_rail_window_V": (4.75, 5.25),
+        # The block assumes the v_supply node (the actual rail seen at this
+        # block's input) stays within this window. Project.run validates the
+        # assumption at run-time: if a future power-supply block publishes a
+        # Contract that drops the rail outside (4.75, 5.25) V, the check
+        # raises ContractViolation with kind="assumed". Until then this
+        # validates against v_supply's leaf-computed value from REQ-PWR-005.
+        "v_supply": RangeQuantity(4.75, 5.25, V),
     },
     compares_to="i_supply",
 )
