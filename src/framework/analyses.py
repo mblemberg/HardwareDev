@@ -8,22 +8,26 @@ Pint as a free side effect.
 v1 scope (deliberately small — extend on demand):
 - :func:`voltage_divider` — classic R-divider, with list inputs for parallel
   resistor stacks.
+- :func:`rc_filter_cutoff` — ``f_c = 1 / (2π RC)`` for a first-order RC filter.
 - :func:`mosfet_thermal_rise` — junction temperature rise from a MOSFET's
   conduction losses (no switching losses; add those separately if needed).
-- :func:`parallel_resistance` / :func:`series_resistance` — combination
-  helpers, used internally by :func:`voltage_divider` and exposed for users
-  who want to pre-compose stacks themselves.
+- :func:`parallel_resistance` / :func:`series_resistance` — resistor
+  combination helpers (used internally by :func:`voltage_divider`).
+- :func:`parallel_capacitance` / :func:`series_capacitance` — capacitor
+  combination helpers. Capacitors combine *opposite* to resistors:
+  capacitors in parallel sum, capacitors in series reciprocal-sum.
 
-Out of v1: ``rc_filter_cutoff``, ``worst_case_droop``, ``current_limit_check``,
+Out of v1: ``worst_case_droop``, ``current_limit_check``,
 ``power_dissipation``, generic ``thermal_rise`` — land when a real project
 needs them.
 """
 from __future__ import annotations
 
+import math
 from typing import Sequence
 
 from framework.quantity import Quantity
-from framework.units import K
+from framework.units import K, Hz
 
 
 def parallel_resistance(resistors: Sequence[Quantity]) -> Quantity:
@@ -55,6 +59,34 @@ def series_resistance(resistors: Sequence[Quantity]) -> Quantity:
     return total
 
 
+def parallel_capacitance(caps: Sequence[Quantity]) -> Quantity:
+    """Equivalent capacitance of capacitors connected in parallel. ``C = sum(C_i)``.
+
+    Caps combine *opposite* to resistors — parallel caps sum (more plate area),
+    series caps reciprocal-sum (charge has to traverse both dielectrics).
+    """
+    if not caps:
+        raise ValueError("parallel_capacitance requires at least one capacitor")
+    if len(caps) == 1:
+        return caps[0]
+    total = caps[0]
+    for c in caps[1:]:
+        total = total + c
+    return total
+
+
+def series_capacitance(caps: Sequence[Quantity]) -> Quantity:
+    """Equivalent capacitance in series. ``C = 1 / sum(1 / C_i)``."""
+    if not caps:
+        raise ValueError("series_capacitance requires at least one capacitor")
+    if len(caps) == 1:
+        return caps[0]
+    inv = 1 / caps[0]
+    for c in caps[1:]:
+        inv = inv + 1 / c
+    return 1 / inv
+
+
 def voltage_divider(
     v_in: Quantity,
     r_top: Quantity | Sequence[Quantity],
@@ -80,6 +112,29 @@ def voltage_divider(
     rt = parallel_resistance(list(r_top)) if isinstance(r_top, (list, tuple)) else r_top
     rb = parallel_resistance(list(r_bottom)) if isinstance(r_bottom, (list, tuple)) else r_bottom
     return v_in * rb / (rt + rb)
+
+
+def rc_filter_cutoff(
+    r: Quantity | Sequence[Quantity],
+    c: Quantity | Sequence[Quantity],
+) -> Quantity:
+    """First-order RC filter cutoff: ``f_c = 1 / (2π R C)``.
+
+    Applies to both the canonical low-pass (R in series, C to ground) and
+    its high-pass dual (C in series, R to ground) — the cutoff frequency is
+    the same. Returns Hz.
+
+    ``r`` may be a single resistance Quantity or a list (combined in
+    **parallel** — same convention as :func:`voltage_divider`). ``c`` may be
+    a single capacitance or a list (combined in **parallel**, i.e. summed —
+    the canonical "bulk + bypass" pattern).
+
+    For unusual series stacks, pre-compose with :func:`series_resistance`
+    or :func:`series_capacitance` and pass the result.
+    """
+    r_eq = parallel_resistance(list(r)) if isinstance(r, (list, tuple)) else r
+    c_eq = parallel_capacitance(list(c)) if isinstance(c, (list, tuple)) else c
+    return (1.0 / (2.0 * math.pi * r_eq * c_eq)).to(Hz)
 
 
 def mosfet_thermal_rise(
@@ -117,7 +172,10 @@ def mosfet_thermal_rise(
 
 __all__ = [
     "mosfet_thermal_rise",
+    "parallel_capacitance",
     "parallel_resistance",
+    "rc_filter_cutoff",
+    "series_capacitance",
     "series_resistance",
     "voltage_divider",
 ]

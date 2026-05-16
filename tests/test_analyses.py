@@ -9,11 +9,14 @@ import pytest
 from framework import Constant, Quantity, RangeQuantity
 from framework.analyses import (
     mosfet_thermal_rise,
+    parallel_capacitance,
     parallel_resistance,
+    rc_filter_cutoff,
+    series_capacitance,
     series_resistance,
     voltage_divider,
 )
-from framework.units import A, V, W, K, mA, Ohm
+from framework.units import A, V, W, K, Hz, kHz, mA, Ohm, kOhm, nF, uF
 
 
 def _close(actual: float, expected: float, tol: float = 1e-9) -> bool:
@@ -221,5 +224,96 @@ class TestFrameworkSubmodule:
         from framework import analyses
         assert hasattr(analyses, "voltage_divider")
         assert hasattr(analyses, "mosfet_thermal_rise")
+        assert hasattr(analyses, "rc_filter_cutoff")
         assert hasattr(analyses, "parallel_resistance")
         assert hasattr(analyses, "series_resistance")
+        assert hasattr(analyses, "parallel_capacitance")
+        assert hasattr(analyses, "series_capacitance")
+
+
+# ---------------------------------------------------------------------------
+# parallel_capacitance / series_capacitance
+# ---------------------------------------------------------------------------
+
+
+class TestCapacitanceHelpers:
+    def test_parallel_caps_sum(self) -> None:
+        # Caps in parallel: C = C1 + C2 + C3
+        c = parallel_capacitance([
+            Constant(10.0, uF),
+            Constant(0.1, uF),    # bulk + bypass pattern
+            Constant(0.01, uF),
+        ])
+        assert _close(float(c.at()), 10.11)
+
+    def test_series_caps_reciprocal_sum(self) -> None:
+        # 1/(1/10 + 1/10) = 5 uF for two 10 uF in series
+        c = series_capacitance([Constant(10.0, uF), Constant(10.0, uF)])
+        assert _close(float(c.at()), 5.0)
+
+    def test_single_passthrough(self) -> None:
+        assert parallel_capacitance([Constant(47.0, nF)]).at() == 47.0
+        assert series_capacitance([Constant(47.0, nF)]).at() == 47.0
+
+    def test_empty_rejected(self) -> None:
+        with pytest.raises(ValueError, match="at least one"):
+            parallel_capacitance([])
+        with pytest.raises(ValueError, match="at least one"):
+            series_capacitance([])
+
+
+# ---------------------------------------------------------------------------
+# rc_filter_cutoff
+# ---------------------------------------------------------------------------
+
+
+class TestRcFilterCutoff:
+    def test_scalar_inputs(self) -> None:
+        # R = 1 kΩ, C = 1 µF → f_c = 1 / (2π · 1e3 · 1e-6) ≈ 159.155 Hz
+        f = rc_filter_cutoff(Constant(1.0, kOhm), Constant(1.0, uF))
+        assert _close(float(f.at()), 1 / (2 * math.pi * 1e3 * 1e-6))
+
+    def test_returns_hz(self) -> None:
+        f = rc_filter_cutoff(Constant(10.0, kOhm), Constant(10.0, nF))
+        assert f.unit == Hz
+
+    def test_higher_r_lowers_cutoff(self) -> None:
+        # f ∝ 1/R: doubling R halves f_c
+        f1 = rc_filter_cutoff(Constant(1.0, kOhm), Constant(1.0, uF))
+        f2 = rc_filter_cutoff(Constant(2.0, kOhm), Constant(1.0, uF))
+        assert _close(float(f2.at()), float(f1.at()) / 2.0)
+
+    def test_caps_paralleled_when_list(self) -> None:
+        # Three 1 µF in parallel = 3 µF; same as a single 3 µF cap.
+        f_list = rc_filter_cutoff(
+            Constant(1.0, kOhm),
+            [Constant(1.0, uF), Constant(1.0, uF), Constant(1.0, uF)],
+        )
+        f_one = rc_filter_cutoff(Constant(1.0, kOhm), Constant(3.0, uF))
+        assert _close(float(f_list.at()), float(f_one.at()))
+
+    def test_resistors_paralleled_when_list(self) -> None:
+        # Two 2 kΩ in parallel = 1 kΩ; same as single 1 kΩ
+        f_list = rc_filter_cutoff(
+            [Constant(2.0, kOhm), Constant(2.0, kOhm)],
+            Constant(1.0, uF),
+        )
+        f_one = rc_filter_cutoff(Constant(1.0, kOhm), Constant(1.0, uF))
+        assert _close(float(f_list.at()), float(f_one.at()))
+
+    def test_propagates_tolerance_range(self) -> None:
+        # R ±5%, C ±20% → f_c carries the propagated range.
+        f = rc_filter_cutoff(
+            RangeQuantity(950.0, 1050.0, Ohm),
+            RangeQuantity(0.8, 1.2, uF),
+        )
+        lo, hi = f.at()
+        # f_lo = 1/(2π · 1050 · 1.2e-6); f_hi = 1/(2π · 950 · 0.8e-6)
+        expected_lo = 1 / (2 * math.pi * 1050.0 * 1.2e-6)
+        expected_hi = 1 / (2 * math.pi * 950.0 * 0.8e-6)
+        assert _close(lo, expected_lo, tol=1e-6)
+        assert _close(hi, expected_hi, tol=1e-6)
+
+    def test_dimensional_mismatch_raises(self) -> None:
+        with pytest.raises(pint.DimensionalityError):
+            rc_filter_cutoff(Constant(1.0, V), Constant(1.0, uF))
