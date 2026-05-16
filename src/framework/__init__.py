@@ -26,6 +26,7 @@ from framework.provenance import (
     ProvenanceNodeInfo,
     ProvenanceRef,
 )
+from framework.logic import TruthTable, TruthTableMismatch, compare_truth_tables
 from framework.quantity import Constant, Quantity, RangeQuantity
 from framework.reports import (
     results_to_html_table,
@@ -82,12 +83,15 @@ __all__ = [
     "TempRange",
     "TestResult",
     "TomlError",
+    "TruthTable",
+    "TruthTableMismatch",
     "VerificationContext",
     "VerificationMeta",
     "check_contract_assumptions",
     "check_contract_consistency",
     "coerce_field_quantity",
     "collect_verification_tests",
+    "compare_truth_tables",
     "contract",
     "detect_cycles",
     "format_results",

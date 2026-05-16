@@ -51,6 +51,8 @@ from framework.quantity import Quantity, _as_range, _coerce_to_unit
 if TYPE_CHECKING:
     import pint
 
+    from framework.logic import TruthTable
+
 _T = TypeVar("_T", bound=Callable[..., "TestResult"])
 
 
@@ -230,6 +232,22 @@ class VerificationContext:
             )
         return v
 
+    def truth_table(self, node_name: str) -> "TruthTable":
+        """Look up a TruthTable result by DAG node name."""
+        from framework.logic import TruthTable  # local: avoid cycle
+
+        if node_name not in self._results:
+            raise KeyError(
+                f"Verification context has no result named {node_name!r}. "
+                f"Available: {sorted(self._results)}"
+            )
+        v = self._results[node_name]
+        if not isinstance(v, TruthTable):
+            raise TypeError(
+                f"Result {node_name!r} is {type(v).__name__}, expected TruthTable"
+            )
+        return v
+
     # ----- assertion helpers ---------------------------------------------
 
     def assert_quantity_in(
@@ -298,6 +316,42 @@ class VerificationContext:
             passed=not failed,
             failed_at=tuple(failed),
             evidence=dict(evidence) if evidence else {},
+        )
+
+    def assert_truth_table_matches(
+        self,
+        actual: "TruthTable",
+        expected: "TruthTable",
+        *,
+        name: str | None = None,
+        evidence: Mapping[str, Any] | None = None,
+    ) -> TestResult:
+        """Check that ``actual`` matches ``expected`` row-for-row.
+
+        Each row where they differ contributes one entry to ``TestResult.failed_at``
+        — the row is encoded as a ``ScenarioMode(scenario=str(inputs_dict), mode=None)``
+        so the existing per-test formatters (`format_results`, the HTML / PR-comment
+        tables) can render it without special-casing logic tests. Logic blocks
+        aren't axis-keyed in the analog sense, so ``scenario`` is just a label
+        identifying the offending input combination.
+        """
+        from framework.logic import compare_truth_tables  # local: avoid cycle
+
+        mismatches = compare_truth_tables(actual, expected)
+        failed: list[ScenarioMode] = []
+        for m in mismatches:
+            # Render inputs as a stable, sorted, compact label so the
+            # rendered tables stay readable.
+            label = ",".join(f"{k}={int(v)}" for k, v in sorted(m.inputs.items()))
+            failed.append(ScenarioMode(scenario=label, mode=None))
+        ev = dict(evidence) if evidence else {}
+        ev.setdefault("actual_table", actual)
+        ev.setdefault("expected_table", expected)
+        return self._make_result(
+            name=name,
+            passed=not failed,
+            failed_at=tuple(failed),
+            evidence=ev,
         )
 
     # ----- helpers --------------------------------------------------------

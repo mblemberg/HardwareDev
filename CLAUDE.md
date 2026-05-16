@@ -74,7 +74,7 @@ The framework's `tests/` runs against `hw_analysis_framework/.venv`; example_ana
 ```powershell
 # from this directory:
 poetry install -E "dev notebooks"
-poetry run pytest                       # 310 tests as of step 10
+poetry run pytest                       # 348 tests as of FR1 (truth tables)
 poetry run pytest --cov                 # coverage report
 poetry run mypy                         # strict on src/framework
 ```
@@ -98,6 +98,7 @@ src/framework/
   component.py      # Component base + coerce_field_quantity validator
   verification.py   # @verification_test + TestResult + VerificationContext + run_verifications + pytest helpers
   reports.py        # results_to_{markdown,html,pr_comment,jama_records} output channels
+  logic.py          # TruthTable + compare_truth_tables for combinational logic blocks
   cache.py / _hashing.py  # content-addressed cache for DAG nodes
   provenance.py     # ProvenanceGraph + ProvenanceRef chain traversal (step 10)
   _toml.py          # internal: Pint-string parsing with precise error locations
