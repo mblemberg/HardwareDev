@@ -31,6 +31,7 @@ from framework.contract import (
     detect_cycles,
     raise_on_mismatches,
 )
+from framework.provenance import attach_provenance, build_provenance_graph
 from framework.modes import ModeSet, load_modes
 from framework.scenarios import ScenarioSet, load_scenarios
 
@@ -162,6 +163,7 @@ class Project:
         inputs: Mapping[str, Any] | None = None,
         validate_contracts: bool = True,
         check_contracts: bool = True,
+        attach_provenance_to_results: bool = True,
     ) -> dict[str, Any]:
         """Build a Hamilton DAG from ``modules`` and compute ``targets``.
 
@@ -213,15 +215,20 @@ class Project:
                 if name not in run_targets:
                     run_targets.append(name)
 
+        # Node hashes are needed for the cache layer when one exists and
+        # always for provenance (when enabled).
+        node_hashes: dict[str, str] = {}
+        if self._cache is not None or attach_provenance_to_results:
+            node_hashes = compute_node_hashes(
+                modules, dict(merged), framework_version=framework.__version__
+            )
+
         if self._cache is None:
             dr = driver.Builder().with_modules(*modules).build()
             results = dr.execute(run_targets, inputs=merged)
         else:
-            # Content-address every node, then split into "served from cache"
-            # (overrides) vs "compute and write back" (lifecycle hook).
-            node_hashes = compute_node_hashes(
-                modules, dict(merged), framework_version=framework.__version__
-            )
+            # Split into "served from cache" (overrides) vs "compute and write
+            # back" (lifecycle hook).
             overrides: dict[str, Any] = {}
             misses: dict[str, str] = {}
             input_names = set(merged.keys())
@@ -241,6 +248,20 @@ class Project:
                 .build()
             )
             results = dr.execute(run_targets, inputs=merged, overrides=overrides)
+
+        # Attach provenance: every Quantity returned gets a ProvenanceRef
+        # pointing at its DAG node, with a shared per-run ProvenanceGraph so
+        # callers can walk q.provenance.chain() to see the full ancestry.
+        if attach_provenance_to_results:
+            graph = build_provenance_graph(modules, dict(merged), node_hashes)
+            from framework.quantity import Quantity  # local: avoid cycle
+            results = {
+                name: (
+                    attach_provenance(val, node_id=name, graph=graph)
+                    if isinstance(val, Quantity) else val
+                )
+                for name, val in results.items()
+            }
 
         if check_contracts:
             mismatches = check_contract_consistency(modules, results, strict=True)

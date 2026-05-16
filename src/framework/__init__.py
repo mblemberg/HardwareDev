@@ -20,7 +20,11 @@ from framework.contract import (
 )
 from framework.modes import Mode, ModeSet, load_modes
 from framework.project import Project
-from framework.provenance import ProvenanceRef
+from framework.provenance import (
+    ProvenanceGraph,
+    ProvenanceNodeInfo,
+    ProvenanceRef,
+)
 from framework.quantity import Constant, Quantity, RangeQuantity
 from framework.reports import (
     results_to_html_table,
@@ -63,6 +67,8 @@ __all__ = [
     "ModeSet",
     "Performance",
     "Project",
+    "ProvenanceGraph",
+    "ProvenanceNodeInfo",
     "ProvenanceRef",
     "Quantity",
     "RangeQuantity",

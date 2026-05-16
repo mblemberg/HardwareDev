@@ -63,7 +63,10 @@ Verification-test functions take a single `ctx: VerificationContext` and return 
 ### 9. `Quantity.iter_axes()` is the cross-axis iteration primitive
 Yields `(scenario, mode, value)` for every leaf in the by_mode × by_scenario × nominal axis tree. Used by both the contract-consistency check (step 8) and verification assertion helpers (step 9a) to enumerate failing corners. Promoted from a private `_iter_axes` in `contract.py` when 9a needed it too — when you want "do something at every (scenario, mode) point this Quantity carries", use this.
 
-### 10. pytest helpers vs the framework's own pytest run
+### 10. Provenance attaches at Project.run time, not at Quantity construction
+`Project.run` builds a per-invocation `ProvenanceGraph` from the same module walk that the cache layer uses, then recursively rewrites every result Quantity's `provenance` field via `dataclasses.replace` (Quantity is frozen). Children of a `by_mode` parent inherit the parent's node_id — drilling into `q.by_mode["active"]` still gives you a useful chain. *Arithmetic Quantities created downstream of `Project.run` carry the default `<literal>` provenance* — promoting provenance through `+ - * /` would require threading it through `_binop`, which is a future change. Use the chain on top-level results, not on values you derived afterward.
+
+### 11. pytest helpers vs the framework's own pytest run
 The framework's `tests/` runs against `hw_analysis_framework/.venv`; example_analysis has its own `tests/` (no separate venv — uses the framework's). Don't be surprised that the framework's `pytest` doesn't pick up `example_analysis/tests/test_verifications.py` — different working directories, different `pytest.ini_options`. To run the example's verification suite: `cd ../example_analysis && ../hw_analysis_framework/.venv/Scripts/python.exe -m pytest tests/`. The example's thermal verification is *designed* to fail (it surfaces the worked example's T_J overshoot at `hot_high_vin`); a "1 failed, 1 passed" exit code is the correct steady state until the block author derates the design.
 
 ## Dev workflow
@@ -71,7 +74,7 @@ The framework's `tests/` runs against `hw_analysis_framework/.venv`; example_ana
 ```powershell
 # from this directory:
 poetry install -E "dev notebooks"
-poetry run pytest                       # 289 tests as of step 9c
+poetry run pytest                       # 310 tests as of step 10
 poetry run pytest --cov                 # coverage report
 poetry run mypy                         # strict on src/framework
 ```
@@ -96,7 +99,7 @@ src/framework/
   verification.py   # @verification_test + TestResult + VerificationContext + run_verifications + pytest helpers
   reports.py        # results_to_{markdown,html,pr_comment,jama_records} output channels
   cache.py / _hashing.py  # content-addressed cache for DAG nodes
-  provenance.py     # ProvenanceRef stub (full impl is step 10)
+  provenance.py     # ProvenanceGraph + ProvenanceRef chain traversal (step 10)
   _toml.py          # internal: Pint-string parsing with precise error locations
 tests/
   fixtures/blocks/<name>/{leaves,analysis}.py
