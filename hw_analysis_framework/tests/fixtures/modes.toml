@@ -1,0 +1,21 @@
+# Standard automotive modes from design doc section 6.3.
+
+[[mode]]
+name = "off"
+description = "Battery disconnected or master disable"
+
+[[mode]]
+name = "sleep"
+description = "Low-power monitoring, RTC running, MCU asleep"
+
+[[mode]]
+name = "active"
+description = "Normal operation, all peripherals available"
+
+[[mode]]
+name = "diagnostic"
+description = "Manufacturing test mode, all rails enabled"
+
+[[mode]]
+name = "calibration"
+description = "Reference calibration, specific subcircuits active"
