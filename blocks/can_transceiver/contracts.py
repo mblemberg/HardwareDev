@@ -11,10 +11,14 @@ Pattern (design doc 6.7):
     - The Contract function returns the *declared* commitment (typically a
       ranged Quantity, mode-keyed) — what we promise downstream.
     - The block's analysis computes the *actual* through normal Hamilton
-      nodes (in our case, ``i_supply`` in ``leaves.py``).
+      nodes (in our case, ``can_i_supply`` in ``leaves.py``).
     - ``compares_to=<actual node>`` wires the two for the run-time consistency
       check (step 8). If actual ever exceeds declared in any scenario/mode,
       :class:`framework.ContractViolation` fires.
+    - ``assumed_inputs`` captures the block's cross-block assumptions: the
+      CAN block assumes the power supply's published ``rail_5v`` Contract
+      stays in (4.75, 5.25) V. The framework's step-8b check validates that
+      the upstream Contract actually satisfies the assumption at run time.
 """
 from __future__ import annotations
 
@@ -26,15 +30,9 @@ from framework.units import V, mA
     description="Block's draw from the 5V CAN rail",
     requirement="REQ-PWR-005",
     assumed_inputs={
-        # The block assumes the v_supply node (the actual rail seen at this
-        # block's input) stays within this window. Project.run validates the
-        # assumption at run-time: if a future power-supply block publishes a
-        # Contract that drops the rail outside (4.75, 5.25) V, the check
-        # raises ContractViolation with kind="assumed". Until then this
-        # validates against v_supply's leaf-computed value from REQ-PWR-005.
-        "v_supply": RangeQuantity(4.75, 5.25, V),
+        "rail_5v": RangeQuantity(4.75, 5.25, V),
     },
-    compares_to="i_supply",
+    compares_to="can_i_supply",
 )
 def can_5v_draw() -> Quantity:
     """Public-facing current draw — declared upper bounds per mode.

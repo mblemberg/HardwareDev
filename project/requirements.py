@@ -47,15 +47,47 @@ VBAT = SupplyEnvelope(
     description="Vehicle 12V system with cold-crank and load-dump margins",
 )
 
-CAN_5V_RAIL = SupplyEnvelope(
+RAIL_5V = SupplyEnvelope(
     nominal=5.0 * V,
     min=4.75 * V,
     max=5.25 * V,
     req="REQ-PWR-005",
     description=(
         "5V analog/peripheral rail (steady-state +/-5%) feeding the CAN "
-        "transceiver and the ADC reference"
+        "transceiver, the MCU, and the ADC reference. Produced by the "
+        "power-supply block; consumed by the CAN transceiver and MCU "
+        "blocks via the power supply's rail_5v Contract."
     ),
+)
+
+
+# --- Block junction-temperature derates -----------------------------------
+#
+# Each digital-IC block carries its own derated T_J max (typically 25 °C
+# below the part's datasheet absolute max). Captured as Performance
+# requirements so the verification report links the failure straight to a
+# Jama row.
+
+MCU_T_J_MAX = Performance(
+    target=Constant(125.0, degC),
+    req="REQ-THM-010",
+    description="MCU junction-temperature derated maximum (25 °C below absolute)",
+)
+
+PSU_T_J_MAX = Performance(
+    target=Constant(125.0, degC),
+    req="REQ-THM-011",
+    description="Power-supply LDO junction-temperature derated maximum",
+)
+
+
+# --- Block current-draw budgets ------------------------------------------
+
+MCU_5V_BUDGET = CurrentBudget(
+    max=80 * mA,
+    applies_to_mode="active",
+    req="REQ-PWR-007",
+    description="MCU upper bound on 5V draw under active-mode load",
 )
 
 

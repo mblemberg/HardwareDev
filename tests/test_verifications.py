@@ -23,8 +23,10 @@ def _all_block_verifications():
     Extend this when you add a new block — see CLAUDE.md "How a new block lands".
     """
     from blocks.can_transceiver import verifications as can_transceiver_v
+    from blocks.mcu import verifications as mcu_v
+    from blocks.power_supply import verifications as psu_v
 
-    return collect_verification_tests([can_transceiver_v])
+    return collect_verification_tests([can_transceiver_v, mcu_v, psu_v])
 
 
 VERIFICATION_TESTS = _all_block_verifications()

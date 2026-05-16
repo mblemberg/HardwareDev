@@ -28,11 +28,14 @@ blocks/
     analysis.py          # derived nodes; Hamilton wires by parameter name
     contracts.py         # public Contracts (declared bounds) — design doc 6.7
     verifications.py     # @verification_test functions — design doc 6.8 / step 9a
+  mcu/                   # second block — STM32G0 application MCU
+    {leaves,analysis,contracts,verifications}.py
+  power_supply/          # third block — NCP1117 linear regulator (publishes rail_5v)
+    {leaves,analysis,contracts,verifications}.py
 tests/
-  conftest.py            # session-scoped project_results fixture
+  conftest.py            # session-scoped project_results fixture (runs all 3 blocks)
   test_verifications.py  # parametrizes over every block's @verification_test (step 9b)
-# future: report.ipynb (step 12)
-can_transceiver_analysis.ipynb   # end-to-end demo: load project, run DAG, render results
+system_analysis.ipynb    # three-block end-to-end demo: load project, run DAG, render reports
 ```
 
 ## Kernel + venv
@@ -61,7 +64,13 @@ Point VS Code's Jupyter kernel selector at that path. The framework is editable-
 For requirements that derate by environmental corner (ADC accuracy at -40 / 25 / 85 °C), declare one `Performance` per corner with `applies_to_scenario="..."`. Each gets its own Jama ID (`REQ-PERF-001a` / `-001b` / `-001c`). Matches Jama's grain. See `project/requirements.py` for the worked pattern.
 
 ### Sourcing leaf values from requirements
-`leaves.v_supply(can_5v_rail) -> Quantity` takes `can_5v_rail` as a Hamilton input, then `project.run(inputs={"can_5v_rail": CAN_5V_RAIL})` passes the actual `SupplyEnvelope`. This wires REQ-PWR-005 directly into the block's supply tolerance without hard-coding numbers.
+A block's leaf can take a project-level `Requirement` as a Hamilton input — pass the actual `SupplyEnvelope` / `TempRange` / etc. into `project.run(inputs={...})` and wire it through the parameter name. This is the pattern when a block's supply tolerance or environmental envelope should track a Jama requirement directly. In the current three-block project, the 5V rail flows from project requirement `RAIL_5V` → published as the power-supply block's `rail_5v` Contract → consumed by CAN and MCU blocks via the Contract (cycle-cut rule, design doc 6.7).
+
+### Block-name prefixing for DAG nodes (Hamilton uses a flat namespace)
+Hamilton wires DAG nodes by parameter name into a single flat namespace. When multiple blocks exist in the same project, every block-local node name must be unique across all blocks — two functions named `t_j` (one in CAN, one in MCU) would collide and Hamilton would refuse to build. Prefix every block-local node with the block name (`can_t_j`, `mcu_t_j`, `psu_t_j`) so cross-block targeting is unambiguous and the project DAG stays composable. Contracts can keep semantically meaningful names (`rail_5v`, `can_5v_draw`, `mcu_5v_draw`) since they're already block-scoped semantically.
+
+### Separating DAG modules from verification modules
+`project.run(modules=...)` should receive only `{leaves, analysis, contracts}` — passing `verifications` modules in causes Hamilton to see `@verification_test` functions as DAG nodes (they take a `ctx` arg, which leaks as an extra input node). `run_verifications(modules, results)` should receive the `verifications` modules; the notebook and conftest pattern is to keep two lists (`DAG_MODULES` / `VERIFICATION_MODULES`) and pass each to the appropriate call. The report renderers (`block_report_html`, `project_report_html`) take the DAG modules — they walk for `@contract`-marked functions only.
 
 ### Thermal math: ambient to K first
 `(ambient_temp.to(K) + thermal_rise).to(degC)` — see `blocks/can_transceiver/analysis.py::t_j`. Adding `degC + K` directly does the wrong thing because Pint treats both as absolutes. (See the framework's CLAUDE.md, gotcha #2.)
@@ -99,8 +108,8 @@ When in doubt about a multi-page net, pick the page where the net is most *defin
 ```powershell
 # from this directory:
 ../hw_analysis_framework/.venv/Scripts/python.exe -m jupyter nbconvert `
-    --to notebook --execute can_transceiver_analysis.ipynb `
-    --output can_transceiver_analysis.ipynb
+    --to notebook --execute system_analysis.ipynb `
+    --output system_analysis.ipynb
 ```
 
-The notebook executes end-to-end and bakes outputs back in. If it fails, the framework probably has a real bug — example_analysis exists to surface those.
+The notebook executes end-to-end and bakes outputs back in. If it fails, the framework probably has a real bug — example_analysis exists to surface those. Designed-to-fail thermal verifications (CAN + MCU + PSU at `hot_high_vin`) are expected; an `nbconvert` exit code of 0 plus three FAIL rows in the verification table is the correct steady state.
