@@ -243,9 +243,17 @@ def _walk_contract_deps(
 class ContractMismatch:
     """One scenario/mode point where actual exceeds declared.
 
-    Returned in lists by :func:`check_contract_consistency`. ``actual`` and
-    ``declared`` are the raw values at that axis combination — scalars or
+    Returned in lists by :func:`check_contract_consistency` (kind=``"declared"``)
+    and :func:`check_contract_assumptions` (kind=``"assumed"``). ``actual``
+    and ``declared`` are the raw values at that axis combination — scalars or
     ``(lo, hi)`` range tuples, in the Contract's unit.
+
+    ``kind`` distinguishes the two flavors so callers and the formatter can
+    render them differently:
+    - ``"declared"``: the block's own actual exceeds the bound the block
+      publishes (step 8).
+    - ``"assumed"``: an upstream value the block assumes (via
+      ``assumed_inputs=``) doesn't satisfy the assumed bound.
     """
 
     contract_name: str
@@ -255,6 +263,7 @@ class ContractMismatch:
     actual: "ScalarOrRange"
     declared: "ScalarOrRange"
     unit: str
+    kind: str = "declared"
 
 
 class ContractViolation(AssertionError):
@@ -283,9 +292,10 @@ def format_mismatches(mismatches: list[ContractMismatch]) -> str:
         if m.mode is not None:
             where.append(f"mode={m.mode!r}")
         loc = ", ".join(where) if where else "(no axes)"
+        bound_word = "assumed" if m.kind == "assumed" else "declared"
         lines.append(
             f"  - {m.contract_name!r} ({m.block}) at {loc}: "
-            f"actual={m.actual} {m.unit} exceeds declared={m.declared} {m.unit}"
+            f"actual={m.actual} {m.unit} exceeds {bound_word}={m.declared} {m.unit}"
         )
     return "\n".join(lines)
 
@@ -367,12 +377,78 @@ def raise_on_mismatches(mismatches: list[ContractMismatch]) -> None:
         raise ContractViolation(mismatches)
 
 
+def check_contract_assumptions(
+    modules: list[types.ModuleType],
+    results: Mapping[str, Any],
+    *,
+    strict: bool = False,
+) -> list[ContractMismatch]:
+    """For every Contract's ``assumed_inputs`` entry whose value is a Quantity,
+    verify the actual DAG-node value (from ``results``) lies within the
+    assumed bound at every (scenario, mode) point.
+
+    This is the cross-block half of design doc §6.7 run-time rules. Where
+    :func:`check_contract_consistency` verifies *a block's own* actual against
+    its own declaration, this function verifies that *upstream* values a
+    block assumes about (the producer's published Contract, or a project
+    input) actually meet those assumptions.
+
+    ``assumed_inputs`` entries whose values are *not* Quantities (raw tuples,
+    numbers, strings — informational labels) are silently skipped. To
+    participate in this check, an assumption must be expressed as a Quantity
+    (typically :func:`framework.RangeQuantity`).
+
+    The key in ``assumed_inputs`` must name a DAG node (or project input)
+    present in ``results``. Missing keys are skipped lenient by default;
+    pass ``strict=True`` to raise instead.
+    """
+    from framework.quantity import Quantity  # local: avoid cycle
+
+    nodes = _collect_nodes(modules)
+    mismatches: list[ContractMismatch] = []
+    for name, info in nodes.items():
+        if not info.is_contract:
+            continue
+        meta = get_contract_meta(info.fn)
+        assert meta is not None
+        for input_name, assumed_value in meta.assumed_inputs.items():
+            if not isinstance(assumed_value, Quantity):
+                continue  # informational only — not validatable
+            if input_name not in results:
+                if strict:
+                    raise ValueError(
+                        f"Contract {name!r} declares "
+                        f"assumed_inputs[{input_name!r}], but {input_name!r} "
+                        f"is not in results."
+                    )
+                continue
+            actual = results[input_name]
+            if not isinstance(actual, Quantity):
+                if strict:
+                    raise TypeError(
+                        f"Contract {name!r} assumed_inputs[{input_name!r}]: "
+                        f"actual is {type(actual).__name__}, expected Quantity."
+                    )
+                continue
+            mismatches.extend(
+                _compare_quantities(
+                    contract_name=f"{name}.assumed[{input_name}]",
+                    block=info.block,
+                    actual=actual,
+                    declared=assumed_value,
+                    kind="assumed",
+                )
+            )
+    return mismatches
+
+
 def _compare_quantities(
     *,
     contract_name: str,
     block: str,
     actual: "Quantity",
     declared: "Quantity",
+    kind: str = "declared",
 ) -> list[ContractMismatch]:
     """Per-axis comparison: every actual point must lie within declared's range."""
     from framework.quantity import Quantity, _as_range  # local import
@@ -391,7 +467,8 @@ def _compare_quantities(
             raise ValueError(
                 f"Contract {contract_name!r}: actual carries "
                 f"(scenario={scenario!r}, mode={mode!r}) but the Contract "
-                f"doesn't declare a bound there. {e}"
+                f"doesn't {'assume' if kind == 'assumed' else 'declare'} a "
+                f"bound there. {e}"
             ) from e
         a_lo, a_hi = _as_range(value)
         d_lo, d_hi = _as_range(d_value)
@@ -405,6 +482,7 @@ def _compare_quantities(
                     actual=value,
                     declared=d_value,
                     unit=str(declared.unit),
+                    kind=kind,
                 )
             )
     return mismatches
@@ -458,6 +536,7 @@ __all__ = [
     "ContractViolation",
     "CycleViolation",
     "block_of_function",
+    "check_contract_assumptions",
     "check_contract_consistency",
     "contract",
     "detect_cycles",

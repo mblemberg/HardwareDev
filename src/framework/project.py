@@ -27,6 +27,7 @@ import framework
 from framework._hashing import compute_node_hashes
 from framework.cache import Cache
 from framework.contract import (
+    check_contract_assumptions,
     check_contract_consistency,
     detect_cycles,
     raise_on_mismatches,
@@ -265,6 +266,10 @@ class Project:
 
         if check_contracts:
             mismatches = check_contract_consistency(modules, results, strict=True)
+            # check_contract_assumptions is run lenient: assumed_inputs may
+            # reference nodes the consumer doesn't pull through this run, and
+            # informational (non-Quantity) entries are silently skipped.
+            mismatches.extend(check_contract_assumptions(modules, results))
             raise_on_mismatches(mismatches)
 
         # Return only what the caller asked for (auto-added contract targets
@@ -277,10 +282,19 @@ class Project:
         existing_targets: set[str],
         input_names: set[str],
     ) -> list[str]:
-        """Names of contract + compares_to nodes to add to the run targets."""
+        """Names of contract + compares_to + Quantity-valued assumed_inputs
+        nodes to add to the run targets. Ensures the consistency check has
+        the contract's own value AND its compares_to target, and the
+        assumptions check has every Quantity-valued assumed_inputs key."""
         from framework.contract import get_contract_meta, is_contract
+        from framework.quantity import Quantity
 
         extra: list[str] = []
+        def _maybe_add(name: str) -> None:
+            if name in input_names or name in existing_targets or name in extra:
+                return
+            extra.append(name)
+
         for module in modules:
             for attr in dir(module):
                 if attr.startswith("_"):
@@ -291,13 +305,23 @@ class Project:
                 if getattr(obj, "__module__", None) != module.__name__:
                     continue
                 meta = get_contract_meta(obj)
-                if meta is None or meta.compares_to is None:
+                if meta is None:
                     continue
-                for name in (attr, meta.compares_to):
-                    if name in input_names or name in existing_targets:
-                        continue
-                    if name not in extra:
-                        extra.append(name)
+                # Consistency check (step 8): contract + compares_to.
+                if meta.compares_to is not None:
+                    _maybe_add(attr)
+                    _maybe_add(meta.compares_to)
+                # Assumptions check (cross-block): contract + each Quantity-
+                # valued assumed_inputs key.
+                if meta.assumed_inputs:
+                    has_quantity_assumption = any(
+                        isinstance(v, Quantity) for v in meta.assumed_inputs.values()
+                    )
+                    if has_quantity_assumption:
+                        _maybe_add(attr)
+                        for key, value in meta.assumed_inputs.items():
+                            if isinstance(value, Quantity):
+                                _maybe_add(key)
         return extra
 
     def list_nodes(self, modules: list[types.ModuleType]) -> list[str]:
