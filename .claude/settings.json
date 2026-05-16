@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(Push-Location *)",
+      "PowerShell(Pop-Location*)",
+      "PowerShell(Get-ChildItem *)",
+      "PowerShell(Test-Path *)",
+      "PowerShell(Get-Content *)",
+      "PowerShell(Get-Command *)",
+      "PowerShell(Resolve-Path *)",
+      "PowerShell(Select-String *)",
+      "PowerShell(git status*)",
+      "PowerShell(git log *)",
+      "PowerShell(git diff *)",
+      "PowerShell(git show *)",
+      "PowerShell(git branch*)",
+      "PowerShell(git rev-parse *)",
+      "PowerShell(git remote*)",
+      "PowerShell(git ls-files*)",
+      "PowerShell(git config --get *)",
+      "PowerShell(poetry --version)",
+      "PowerShell(poetry run pytest*)",
+      "PowerShell(poetry run mypy*)",
+      "PowerShell(poetry env *)",
+      "PowerShell(poetry show *)"
+    ]
+  }
+}

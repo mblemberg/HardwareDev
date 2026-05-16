@@ -1,0 +1,29 @@
+# Python
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.egg-info/
+**/.mypy_cache/
+**/.pytest_cache/
+**/.ruff_cache/
+**/.coverage
+**/htmlcov/
+
+# Virtual environments
+**/.venv/
+**/venv/
+
+# Framework-specific caches
+**/.framework_cache/
+
+# Jupyter
+**/.ipynb_checkpoints/
+
+# Generated review artifacts (regenerate via `jupyter nbconvert --to html`)
+**/system_analysis.html
+**/system_review.html
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
