@@ -269,8 +269,8 @@ ERJ3 = ResistorFamily(
     manufacturer="Panasonic",
     series="ERJ-3",
     description="Thick-film chip resistors, general purpose, AEC-Q200",
-    tolerance=Quantity(by_scenario={"_": 0.01}),               # ±1%
-    temp_coefficient=Quantity(by_scenario={"_": 100 * ppm / degC}),
+    tolerance=Quantity(by_scenario={"_ALL_": 0.01}),               # ±1%
+    temp_coefficient=Quantity(by_scenario={"_ALL_": 100 * ppm / degC}),
     available_sizes=[SmtSize.IMP0603, SmtSize.IMP0805, SmtSize.IMP1206],
     power_rating_by_size={
         SmtSize.IMP0603: 0.1   * W,
@@ -309,8 +309,8 @@ IRLML6344 = MOSFET(
     v_gs_th=Quantity(by_scenario={
         "min": 0.6 * V, "typ": 1.1 * V, "max": 1.5 * V,
     }),
-    v_ds_max=Quantity(by_scenario={"_": 30 * V}),
-    i_d_max=Quantity(by_scenario={"_":  5 * A}),
+    v_ds_max=Quantity(by_scenario={"_ALL_": 30 * V}),
+    i_d_max=Quantity(by_scenario={"_ALL_":  5 * A}),
     q_g_total=Quantity(by_scenario={"typ": 1.5 * nC}),
 )
 ```
@@ -383,9 +383,9 @@ from framework import contract, Quantity, units
 def block_a_3v3_draw() -> Quantity:
     return Quantity(
         by_mode={
-            "sleep":      Quantity(by_scenario={"_": (5 * uA,   12 * uA)}),
-            "active":     Quantity(by_scenario={"_": (80 * mA, 220 * mA)}),
-            "diagnostic": Quantity(by_scenario={"_": (100 * mA, 260 * mA)}),
+            "sleep":      Quantity(by_scenario={"_ALL_": (5 * uA,   12 * uA)}),
+            "active":     Quantity(by_scenario={"_ALL_": (80 * mA, 220 * mA)}),
+            "diagnostic": Quantity(by_scenario={"_ALL_": (100 * mA, 260 * mA)}),
         },
         unit=units.A,
     )
@@ -816,8 +816,8 @@ No DSL, no YAML-driven analysis language. Python is the substrate. Training peop
 )
 def block_a_3v3_draw() -> Quantity:
     return Quantity(by_mode={
-        "sleep":  Quantity(by_scenario={"_": (5*uA, 12*uA)}),
-        "active": Quantity(by_scenario={"_": (80*mA, 220*mA)}),
+        "sleep":  Quantity(by_scenario={"_ALL_": (5*uA, 12*uA)}),
+        "active": Quantity(by_scenario={"_ALL_": (80*mA, 220*mA)}),
     }, unit=A)
 ```
 
