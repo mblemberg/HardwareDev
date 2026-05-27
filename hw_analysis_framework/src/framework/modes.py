@@ -44,7 +44,7 @@ class ModeSet(BaseModel):
     modes: list[Mode] = Field(default_factory=list)
 
     @model_validator(mode="after")
-    def _names_unique(self) -> "ModeSet":
+    def _names_unique(self) -> ModeSet:
         seen: dict[str, int] = {}
         for i, m in enumerate(self.modes):
             if m.name in seen:

@@ -30,7 +30,6 @@ those returns ``[]`` and ``chain()`` returns ``[self]``.
 from __future__ import annotations
 
 import dataclasses
-import inspect
 import logging
 import types
 import warnings
@@ -72,7 +71,7 @@ class ProvenanceGraph:
 
     def __init__(self, nodes: dict[str, ProvenanceNodeInfo]) -> None:
         self.nodes = nodes
-        self._chain_cache: dict[tuple[str, int], list["ProvenanceRef"]] = {}
+        self._chain_cache: dict[tuple[str, int], list[ProvenanceRef]] = {}
 
     def info(self, node_id: str) -> ProvenanceNodeInfo | None:
         return self.nodes.get(node_id)
@@ -109,7 +108,7 @@ class ProvenanceRef:
     def is_literal(self) -> bool:
         return self.node_id == LITERAL_NODE_ID or self._graph is None
 
-    def parents(self) -> list["ProvenanceRef"]:
+    def parents(self) -> list[ProvenanceRef]:
         """Immediate parent ProvenanceRefs. Empty for inputs / unhooked refs."""
         info = self.info
         if info is None or self._graph is None:
@@ -121,11 +120,11 @@ class ProvenanceRef:
 
     # Backwards-compat: step 1 stub exposed singular parent(). Keep the name,
     # return the first parent for callers that don't care about full ancestry.
-    def parent(self) -> "ProvenanceRef | None":
+    def parent(self) -> ProvenanceRef | None:
         ps = self.parents()
         return ps[0] if ps else None
 
-    def chain(self, max_depth: int = 100) -> list["ProvenanceRef"]:
+    def chain(self, max_depth: int = 100) -> list[ProvenanceRef]:
         """Flat list of ancestors (breadth-first), with ``self`` first.
 
         Terminates revisited branches via a visited set. On overshoot of
@@ -265,11 +264,11 @@ def build_provenance_graph(
 
 
 def attach_provenance(
-    quantity: "Quantity",
+    quantity: Quantity,
     *,
     node_id: str,
     graph: ProvenanceGraph,
-) -> "Quantity":
+) -> Quantity:
     """Return a copy of ``quantity`` whose provenance points at ``node_id``.
 
     Recursively attaches to ``by_mode`` children too so a caller drilling

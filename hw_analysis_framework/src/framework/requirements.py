@@ -38,16 +38,15 @@ from framework._toml import TomlError, parse_pint
 from framework.quantity import Quantity as _FQ
 from framework.units import registry
 
-
 # ---------------------------------------------------------------------------
 # Module-level registry. Populated by Requirement.__init__ on construction;
 # `from project.requirements import *` is the natural population trigger.
 # ---------------------------------------------------------------------------
 
-_REGISTRY: dict[str, "Requirement"] = {}
+_REGISTRY: dict[str, Requirement] = {}
 
 
-def register(req: "Requirement") -> None:
+def register(req: Requirement) -> None:
     """Add ``req`` to the global registry.
 
     Idempotent for re-construction of the *same* requirement (same ``req`` ID
@@ -73,12 +72,12 @@ def clear() -> None:
     _REGISTRY.clear()
 
 
-def list_all() -> list["Requirement"]:
+def list_all() -> list[Requirement]:
     """All currently registered Requirements, sorted by ID."""
     return sorted(_REGISTRY.values(), key=lambda r: r.req)
 
 
-def show(req_id: str) -> "Requirement":
+def show(req_id: str) -> Requirement:
     """Look up a Requirement by ID. Raises ``KeyError`` with a suggestion."""
     try:
         return _REGISTRY[req_id]
@@ -200,7 +199,7 @@ class TempRange(Requirement):
         return _coerce(v, dimensionality=_DIM_TEMPERATURE, location="TempRange.max")
 
     @model_validator(mode="after")
-    def _min_le_max(self) -> "TempRange":
+    def _min_le_max(self) -> TempRange:
         if _temp_to_K(self.min) > _temp_to_K(self.max):
             raise ValueError(
                 f"TempRange {self.req}: min ({self.min}) > max ({self.max})"
@@ -252,7 +251,7 @@ class SupplyEnvelope(Requirement):
         return _coerce(v, dimensionality=_DIM_VOLTAGE, location="SupplyEnvelope.transient_max")
 
     @model_validator(mode="after")
-    def _check_envelope(self) -> "SupplyEnvelope":
+    def _check_envelope(self) -> SupplyEnvelope:
         # Compare in volts to avoid surprises with mV / V mixing.
         V = registry.volt
         mn = float(self.min.to(V).magnitude)
@@ -296,7 +295,7 @@ class CurrentBudget(Requirement):
         return _coerce(v, dimensionality=_DIM_CURRENT, location="CurrentBudget.max")
 
     @model_validator(mode="after")
-    def _max_positive(self) -> "CurrentBudget":
+    def _max_positive(self) -> CurrentBudget:
         if float(self.max.to(registry.ampere).magnitude) <= 0:
             raise ValueError(
                 f"CurrentBudget {self.req}: max ({self.max}) must be > 0"
@@ -354,7 +353,7 @@ class Performance(Requirement):
         return _coerce(v, location="Performance.tolerance")
 
     @model_validator(mode="after")
-    def _check_tolerance(self) -> "Performance":
+    def _check_tolerance(self) -> Performance:
         if self.tolerance is not None:
             if self.tolerance.dimensionality != self.target.dimensionality:
                 raise ValueError(

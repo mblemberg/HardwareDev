@@ -7,11 +7,10 @@ from typing import Annotated
 import pint
 import pydantic
 import pytest
-from pydantic import BeforeValidator, Field
+from pydantic import BeforeValidator
 
 from framework import Component, Constant, Quantity, coerce_field_quantity
 from framework.units import A, V, mA, mOhm
-
 
 # A toy subclass standing in for the real schemas (MOSFET / Resistor / ...)
 # the `components` package will define on top of Component.

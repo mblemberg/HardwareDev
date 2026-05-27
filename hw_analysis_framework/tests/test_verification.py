@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import types
-from typing import Callable
+from collections.abc import Callable
 
 import pytest
 
@@ -23,8 +23,7 @@ from framework import (
     run_verifications,
     verification_test,
 )
-from framework.units import K, V, degC, mA
-
+from framework.units import V, degC, mA
 
 # ---------------------------------------------------------------------------
 # Decorator wiring

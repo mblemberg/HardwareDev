@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 from framework import Quantity, contract
-from framework.units import V
 
 
 @contract(description="Block X's 3V3 current draw")

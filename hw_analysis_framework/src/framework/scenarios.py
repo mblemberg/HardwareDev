@@ -74,7 +74,7 @@ class ScenarioSet(BaseModel):
     scenarios: list[Scenario] = Field(default_factory=list)
 
     @model_validator(mode="after")
-    def _names_unique(self) -> "ScenarioSet":
+    def _names_unique(self) -> ScenarioSet:
         seen: dict[str, int] = {}
         for i, s in enumerate(self.scenarios):
             if s.name in seen:
@@ -105,7 +105,7 @@ class ScenarioSet(BaseModel):
     def __contains__(self, name: object) -> bool:
         return isinstance(name, str) and any(s.name == name for s in self.scenarios)
 
-    def as_quantity(self, key: str, *, unit: pint.Unit | None = None) -> "Quantity":
+    def as_quantity(self, key: str, *, unit: pint.Unit | None = None) -> Quantity:
         """Build a `Quantity(by_scenario=...)` from a context key across this set.
 
         Only scenarios that define ``key`` are included in the result. The

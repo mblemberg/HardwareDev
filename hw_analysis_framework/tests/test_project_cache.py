@@ -10,22 +10,19 @@ code.
 """
 from __future__ import annotations
 
-import math
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Iterator
 
 import pytest
-
-import framework
-from framework import Constant, Project, Quantity, RangeQuantity
-from framework.cache import Cache
-from framework.modes import Mode, ModeSet
-from framework.scenarios import Scenario, ScenarioSet
-from framework.units import A, K, V, W, degC, mA
 
 # Pull the sample block fixtures the test_project file uses.
 from sample_block import analysis, leaves
 
+import framework
+from framework import Constant, Project, Quantity
+from framework.modes import Mode, ModeSet
+from framework.scenarios import Scenario, ScenarioSet
+from framework.units import K, mA
 
 # ---------- helpers ----------
 

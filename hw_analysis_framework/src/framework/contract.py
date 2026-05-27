@@ -31,9 +31,9 @@ from __future__ import annotations
 
 import inspect
 import types
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Callable, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from framework.quantity import INVARIANT
 
@@ -262,8 +262,8 @@ class ContractMismatch:
     block: str
     scenario: str | None
     mode: str | None
-    actual: "ScalarOrRange"
-    declared: "ScalarOrRange"
+    actual: ScalarOrRange
+    declared: ScalarOrRange
     unit: str
     kind: str = "declared"
 
@@ -448,12 +448,12 @@ def _compare_quantities(
     *,
     contract_name: str,
     block: str,
-    actual: "Quantity",
-    declared: "Quantity",
+    actual: Quantity,
+    declared: Quantity,
     kind: str = "declared",
 ) -> list[ContractMismatch]:
     """Per-axis comparison: every actual point must lie within declared's range."""
-    from framework.quantity import Quantity, _as_range  # local import
+    from framework.quantity import _as_range  # local import
 
     # Convert actual into declared's unit so comparisons are unit-correct.
     if actual.unit != declared.unit:
@@ -491,8 +491,8 @@ def _compare_quantities(
 
 
 def _evaluate_at(
-    q: "Quantity", *, scenario: str | None, mode: str | None
-) -> "ScalarOrRange":
+    q: Quantity, *, scenario: str | None, mode: str | None
+) -> ScalarOrRange:
     """``Quantity.at`` but tolerant of missing axes on the *declared* side.
 
     The declared Contract may be mode-less even if the actual is mode-keyed

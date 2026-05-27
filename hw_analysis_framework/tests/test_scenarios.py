@@ -4,12 +4,11 @@ from __future__ import annotations
 import math
 from pathlib import Path
 
-import pint
 import pydantic
 import pytest
 
-from framework import INVARIANT, TomlError, Scenario, ScenarioSet, load_scenarios
-from framework.units import V, degC, ppm, registry
+from framework import INVARIANT, Scenario, ScenarioSet, TomlError, load_scenarios
+from framework.units import V, degC, ppm
 
 FIXTURES = Path(__file__).parent / "fixtures"
 

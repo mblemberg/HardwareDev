@@ -15,8 +15,7 @@ from framework import (
     is_contract,
 )
 from framework.contract import block_of_function
-from framework.units import V, mA
-
+from framework.units import mA
 
 # ---------------------------------------------------------------------------
 # Decorator + metadata
@@ -95,19 +94,21 @@ class TestBlockOf:
 class TestCycleDetection:
     def test_valid_intra_block_passes(self) -> None:
         # block_x: contract depends only on its own block's leaf — fine.
-        from block_x import contracts as x_contracts, leaves as x_leaves
+        from block_x import contracts as x_contracts
+        from block_x import leaves as x_leaves
         detect_cycles([x_leaves, x_contracts])
 
     def test_valid_cross_block_via_contract_passes(self) -> None:
         # block_y's contract depends on block_x's contract — allowed.
-        from block_x import contracts as x_contracts, leaves as x_leaves
+        from block_x import contracts as x_contracts
+        from block_x import leaves as x_leaves
         from block_y import contracts as y_contracts
         detect_cycles([x_leaves, x_contracts, y_contracts])
 
     def test_cross_block_non_contract_dep_rejected(self) -> None:
         # bad_block.bad_draw depends on x_internal_draw — a non-Contract from another block.
-        from block_x import leaves as x_leaves
         from bad_block import contracts as bad_contracts
+        from block_x import leaves as x_leaves
         with pytest.raises(CycleViolation) as exc_info:
             detect_cycles([x_leaves, bad_contracts])
         msg = str(exc_info.value)

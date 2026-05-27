@@ -33,9 +33,9 @@ Out of scope for v1:
 """
 from __future__ import annotations
 
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from itertools import product
-from typing import Callable, Iterator, Mapping, Sequence
 
 
 def _coerce_bool(v: object) -> bool:
@@ -111,7 +111,7 @@ class TruthTable:
         inputs: Sequence[str],
         outputs: Sequence[str],
         rows: Sequence[Sequence[object] | Mapping[str, object]],
-    ) -> "TruthTable":
+    ) -> TruthTable:
         """Build from a sequence of flat tuples or dicts.
 
         Flat-tuple form: each row has ``len(inputs) + len(outputs)`` cells, in
@@ -148,7 +148,7 @@ class TruthTable:
         inputs: Sequence[str],
         outputs: Sequence[str],
         fn: Callable[..., Mapping[str, object] | object],
-    ) -> "TruthTable":
+    ) -> TruthTable:
         """Enumerate all 2^n input combinations and call ``fn`` for each.
 
         ``fn`` receives input values as keyword args (one per name in ``inputs``)
@@ -159,7 +159,7 @@ class TruthTable:
         outs_t = tuple(outputs)
         built: list[tuple[tuple[bool, ...], tuple[bool, ...]]] = []
         for combo in product((False, True), repeat=len(ins_t)):
-            kwargs = dict(zip(ins_t, combo))
+            kwargs = dict(zip(ins_t, combo, strict=False))
             result = fn(**kwargs)
             if isinstance(result, Mapping):
                 out_vals = tuple(_coerce_bool(result[k]) for k in outs_t)
@@ -183,13 +183,13 @@ class TruthTable:
         key = tuple(_coerce_bool(input_values[name]) for name in self.inputs)
         for ins, outs in self.rows:
             if ins == key:
-                return dict(zip(self.outputs, outs))
-        raise KeyError(f"input combination {dict(zip(self.inputs, key))!r} not in table")
+                return dict(zip(self.outputs, outs, strict=False))
+        raise KeyError(f"input combination {dict(zip(self.inputs, key, strict=False))!r} not in table")
 
     def iter_rows(self) -> Iterator[tuple[dict[str, bool], dict[str, bool]]]:
         """Yield ``(inputs_dict, outputs_dict)`` for each row."""
         for ins, outs in self.rows:
-            yield dict(zip(self.inputs, ins)), dict(zip(self.outputs, outs))
+            yield dict(zip(self.inputs, ins, strict=False)), dict(zip(self.outputs, outs, strict=False))
 
     def is_complete(self) -> bool:
         """True iff the table covers all 2**n input combinations."""
@@ -252,8 +252,8 @@ def compare_truth_tables(
     mismatches: list[TruthTableMismatch] = []
     # Walk expected first so we catch rows actual is missing.
     for ins, exp_outs in expected.rows:
-        inputs_dict = dict(zip(expected.inputs, ins))
-        exp_dict = dict(zip(expected.outputs, exp_outs))
+        inputs_dict = dict(zip(expected.inputs, ins, strict=False))
+        exp_dict = dict(zip(expected.outputs, exp_outs, strict=False))
         if ins not in actual_lookup:
             mismatches.append(
                 TruthTableMismatch(inputs=inputs_dict, expected=exp_dict, actual=None)
@@ -261,15 +261,15 @@ def compare_truth_tables(
             continue
         act_outs = actual_lookup[ins]
         if act_outs != exp_outs:
-            act_dict = dict(zip(actual.outputs, act_outs))
+            act_dict = dict(zip(actual.outputs, act_outs, strict=False))
             mismatches.append(
                 TruthTableMismatch(inputs=inputs_dict, expected=exp_dict, actual=act_dict)
             )
     # Also flag rows actual has but expected doesn't — table-wide surprise.
     for ins, act_outs in actual.rows:
         if ins not in expected_lookup:
-            inputs_dict = dict(zip(actual.inputs, ins))
-            act_dict = dict(zip(actual.outputs, act_outs))
+            inputs_dict = dict(zip(actual.inputs, ins, strict=False))
+            act_dict = dict(zip(actual.outputs, act_outs, strict=False))
             mismatches.append(
                 TruthTableMismatch(inputs=inputs_dict, expected={}, actual=act_dict)
             )

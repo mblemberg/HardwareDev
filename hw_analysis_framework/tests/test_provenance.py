@@ -4,8 +4,6 @@ from __future__ import annotations
 import types
 import warnings
 
-import pytest
-
 from framework import (
     Constant,
     Project,
@@ -17,8 +15,7 @@ from framework import (
 from framework.modes import ModeSet
 from framework.provenance import attach_provenance, build_provenance_graph
 from framework.scenarios import ScenarioSet
-from framework.units import K, V, degC, mA, mW
-
+from framework.units import degC, mA
 
 # ---------------------------------------------------------------------------
 # Literal refs (no graph)

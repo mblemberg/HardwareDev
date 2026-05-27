@@ -2,9 +2,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
-
-import pytest
+from datetime import UTC, datetime
 
 from framework import (
     ScenarioMode,
@@ -150,14 +148,14 @@ class TestPrComment:
 
 class TestJamaRecords:
     def test_round_trips_through_json(self) -> None:
-        fixed = datetime(2026, 5, 15, 12, 0, 0, tzinfo=timezone.utc)
+        fixed = datetime(2026, 5, 15, 12, 0, 0, tzinfo=UTC)
         records = results_to_jama_records(_sample_results(), now=fixed)
         # Must serialize cleanly.
         s = json.dumps(records)
         assert "thermal" in s
 
     def test_status_field_maps_severity(self) -> None:
-        fixed = datetime(2026, 5, 15, 12, 0, 0, tzinfo=timezone.utc)
+        fixed = datetime(2026, 5, 15, 12, 0, 0, tzinfo=UTC)
         records = results_to_jama_records(_sample_results(), now=fixed)
         by_name = {r["name"]: r for r in records}
         assert by_name["thermal"]["status"] == "fail"
@@ -183,6 +181,6 @@ class TestJamaRecords:
         assert sorted(by_name["thermal"]["evidence_keys"]) == ["t_j", "t_j_max"]
 
     def test_deterministic_timestamp(self) -> None:
-        fixed = datetime(2026, 5, 15, 12, 0, 0, tzinfo=timezone.utc)
+        fixed = datetime(2026, 5, 15, 12, 0, 0, tzinfo=UTC)
         records = results_to_jama_records({"a": TestResult(name="a", passed=True)}, now=fixed)
         assert records[0]["executed_at"] == "2026-05-15T12:00:00+00:00"

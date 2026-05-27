@@ -30,7 +30,7 @@ from __future__ import annotations
 
 import types
 from collections.abc import Mapping
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from html import escape
 from typing import Any
 
@@ -41,7 +41,6 @@ from framework.contract import (
 )
 from framework.quantity import INVARIANT, Quantity, _as_range
 from framework.verification import ScenarioMode, Severity, TestResult
-
 
 # ---------------------------------------------------------------------------
 # Common helpers
@@ -247,7 +246,7 @@ def results_to_jama_records(
     ``now`` is a hook for deterministic testing.
     """
     if now is None:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
     ts = now.isoformat()
     out: list[dict[str, Any]] = []
     for r in _sorted_results(results):

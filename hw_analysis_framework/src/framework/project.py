@@ -32,8 +32,8 @@ from framework.contract import (
     detect_cycles,
     raise_on_mismatches,
 )
-from framework.provenance import attach_provenance, build_provenance_graph
 from framework.modes import ModeSet, load_modes
+from framework.provenance import attach_provenance, build_provenance_graph
 from framework.scenarios import ScenarioSet, load_scenarios
 
 
@@ -100,7 +100,7 @@ class Project:
         scenarios: Path | str | ScenarioSet,
         modes: Path | str | ModeSet,
         cache_dir: Path | str | None = "default",
-    ) -> "Project":
+    ) -> Project:
         """Construct a Project from TOML file paths or already-loaded sets.
 
         Pass either a path (``"project/scenarios.toml"``) or an already-

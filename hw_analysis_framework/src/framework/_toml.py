@@ -11,11 +11,11 @@ table, and the field, so editor errors are actionable.
 from __future__ import annotations
 
 import re
+import tomllib
 from pathlib import Path
 from typing import Any
 
 import pint
-import tomllib
 
 from framework.units import registry
 

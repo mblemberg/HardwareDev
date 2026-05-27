@@ -20,7 +20,6 @@ from framework.modes import ModeSet
 from framework.scenarios import ScenarioSet
 from framework.units import A, mA
 
-
 # ---------------------------------------------------------------------------
 # Decorator wiring
 # ---------------------------------------------------------------------------

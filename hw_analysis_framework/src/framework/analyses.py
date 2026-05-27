@@ -24,10 +24,10 @@ needs them.
 from __future__ import annotations
 
 import math
-from typing import Sequence
+from collections.abc import Sequence
 
 from framework.quantity import Quantity
-from framework.units import K, Hz
+from framework.units import Hz, K
 
 
 def parallel_resistance(resistors: Sequence[Quantity]) -> Quantity:

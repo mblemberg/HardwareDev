@@ -4,17 +4,12 @@ from __future__ import annotations
 import pytest
 
 from framework import (
-    ScenarioMode,
     Severity,
-    TestResult,
     TruthTable,
-    TruthTableMismatch,
     VerificationContext,
     compare_truth_tables,
-    verification_test,
 )
 from framework.verification import VerificationMeta
-
 
 # ---------------------------------------------------------------------------
 # Construction
@@ -279,8 +274,9 @@ class TestEndToEnd:
         return Project(scenarios=ScenarioSet(scenarios=[]), modes=ModeSet(modes=[]), cache_dir=None)
 
     def test_decoder_verification_passes(self) -> None:
-        from framework import run_verifications
         from logic_block import leaves, verifications
+
+        from framework import run_verifications
 
         results = self._project().run(
             modules=[leaves],

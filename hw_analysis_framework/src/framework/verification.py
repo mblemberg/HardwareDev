@@ -42,9 +42,9 @@ from __future__ import annotations
 
 import enum
 import types
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Callable, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from framework.quantity import INVARIANT, Quantity, _as_range, _coerce_to_unit
 
@@ -232,7 +232,7 @@ class VerificationContext:
             )
         return v
 
-    def truth_table(self, node_name: str) -> "TruthTable":
+    def truth_table(self, node_name: str) -> TruthTable:
         """Look up a TruthTable result by DAG node name."""
         from framework.logic import TruthTable  # local: avoid cycle
 
@@ -253,8 +253,8 @@ class VerificationContext:
     def assert_quantity_in(
         self,
         q: Quantity,
-        lo: "pint.Quantity | Quantity | float",
-        hi: "pint.Quantity | Quantity | float",
+        lo: pint.Quantity | Quantity | float,
+        hi: pint.Quantity | Quantity | float,
         *,
         name: str | None = None,
         evidence: Mapping[str, Any] | None = None,
@@ -277,7 +277,7 @@ class VerificationContext:
     def assert_quantity_below(
         self,
         q: Quantity,
-        upper: "pint.Quantity | Quantity | float",
+        upper: pint.Quantity | Quantity | float,
         *,
         name: str | None = None,
         evidence: Mapping[str, Any] | None = None,
@@ -299,7 +299,7 @@ class VerificationContext:
     def assert_quantity_above(
         self,
         q: Quantity,
-        lower: "pint.Quantity | Quantity | float",
+        lower: pint.Quantity | Quantity | float,
         *,
         name: str | None = None,
         evidence: Mapping[str, Any] | None = None,
@@ -320,8 +320,8 @@ class VerificationContext:
 
     def assert_truth_table_matches(
         self,
-        actual: "TruthTable",
-        expected: "TruthTable",
+        actual: TruthTable,
+        expected: TruthTable,
         *,
         name: str | None = None,
         evidence: Mapping[str, Any] | None = None,

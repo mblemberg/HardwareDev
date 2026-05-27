@@ -8,13 +8,12 @@ import pytest
 
 from framework import units
 from framework.quantity import (
-    Constant,
     INVARIANT,
+    Constant,
     Quantity,
     RangeQuantity,
 )
-from framework.units import A, K, Ohm, V, degC, kOhm, mA, mV, registry, uA
-
+from framework.units import A, K, Ohm, V, degC, kOhm, mA, mV, registry
 
 # ---------- construction ----------
 

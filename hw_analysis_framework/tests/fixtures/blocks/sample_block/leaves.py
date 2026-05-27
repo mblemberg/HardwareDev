@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from framework import Constant, Quantity, RangeQuantity
-from framework.units import A, V, W, K, mA
+from framework.units import K, V, W, mA
 
 
 def i_supply() -> Quantity:

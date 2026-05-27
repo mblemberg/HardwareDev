@@ -19,6 +19,7 @@ from framework.contract import (
     get_contract_meta,
     is_contract,
 )
+from framework.logic import TruthTable, TruthTableMismatch, compare_truth_tables
 from framework.modes import Mode, ModeSet, load_modes
 from framework.project import Project
 from framework.provenance import (
@@ -26,7 +27,6 @@ from framework.provenance import (
     ProvenanceNodeInfo,
     ProvenanceRef,
 )
-from framework.logic import TruthTable, TruthTableMismatch, compare_truth_tables
 from framework.quantity import INVARIANT, Constant, Quantity, RangeQuantity
 from framework.reports import (
     block_report_html,

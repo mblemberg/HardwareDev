@@ -11,8 +11,9 @@ are deferred to a later phase (section 7.5, Monte Carlo opt-in).
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from dataclasses import dataclass, field, replace
-from typing import Iterator, Union
+from typing import Union
 
 import pint
 
@@ -37,7 +38,7 @@ def _collapse(r: Range) -> ScalarOrRange:
 
 
 def _coerce_to_unit(
-    value: "float | pint.Quantity | Quantity", unit: pint.Unit
+    value: float | pint.Quantity | Quantity, unit: pint.Unit
 ) -> float:
     """Convert a raw number, Pint quantity, or scalar framework Quantity into ``unit``.
 
@@ -98,7 +99,7 @@ class Quantity:
 
     unit: pint.Unit
     by_scenario: dict[str, ScalarOrRange] | None = None
-    by_mode: dict[str, "Quantity"] | None = None
+    by_mode: dict[str, Quantity] | None = None
     value: ScalarOrRange | None = None
     provenance: ProvenanceRef = field(default_factory=ProvenanceRef)
 
@@ -169,8 +170,8 @@ class Quantity:
 
     def within(
         self,
-        min: "pint.Quantity | Quantity | float",  # noqa: A002
-        max: "pint.Quantity | Quantity | float",  # noqa: A002
+        min: pint.Quantity | Quantity | float,  # noqa: A002
+        max: pint.Quantity | Quantity | float,  # noqa: A002
     ) -> bool:
         """True iff every scenario/mode evaluation lies within [min, max].
 
@@ -223,7 +224,7 @@ class Quantity:
         assert self.value is not None
         return [self.value]
 
-    def to(self, target_unit: pint.Unit) -> "Quantity":
+    def to(self, target_unit: pint.Unit) -> Quantity:
         """Return an equivalent Quantity expressed in `target_unit`.
 
         Per-magnitude conversion through Pint, so offset units (degC, degF)
@@ -251,7 +252,7 @@ class Quantity:
         self,
         fn,
         new_unit: pint.Unit | None = None,
-    ) -> "Quantity":
+    ) -> Quantity:
         u = new_unit if new_unit is not None else self.unit
         if self.by_mode is not None:
             new_modes = {
@@ -269,34 +270,34 @@ class Quantity:
         new_nom = _collapse(tuple(fn(x) for x in _as_range(self.value)))  # type: ignore[arg-type]
         return replace(self, value=new_nom, unit=u)
 
-    def __neg__(self) -> "Quantity":
+    def __neg__(self) -> Quantity:
         return self._map_scalars(lambda x: -x)
 
-    def __add__(self, other: PintLike | float | int) -> "Quantity":
+    def __add__(self, other: PintLike | float | int) -> Quantity:
         return _binop(self, other, _add_ranges, _add_units)
 
-    def __radd__(self, other: PintLike | float | int) -> "Quantity":
+    def __radd__(self, other: PintLike | float | int) -> Quantity:
         return _binop(_lift(other, self.unit), self, _add_ranges, _add_units)
 
-    def __sub__(self, other: PintLike | float | int) -> "Quantity":
+    def __sub__(self, other: PintLike | float | int) -> Quantity:
         return _binop(self, other, _sub_ranges, _add_units)
 
-    def __rsub__(self, other: PintLike | float | int) -> "Quantity":
+    def __rsub__(self, other: PintLike | float | int) -> Quantity:
         return _binop(_lift(other, self.unit), self, _sub_ranges, _add_units)
 
-    def __mul__(self, other: PintLike | float | int) -> "Quantity":
+    def __mul__(self, other: PintLike | float | int) -> Quantity:
         return _binop(self, other, _mul_ranges, _mul_units)
 
-    def __rmul__(self, other: PintLike | float | int) -> "Quantity":
+    def __rmul__(self, other: PintLike | float | int) -> Quantity:
         return _binop(_lift_dimensionless(other), self, _mul_ranges, _mul_units)
 
-    def __truediv__(self, other: PintLike | float | int) -> "Quantity":
+    def __truediv__(self, other: PintLike | float | int) -> Quantity:
         return _binop(self, other, _div_ranges, _div_units)
 
-    def __rtruediv__(self, other: PintLike | float | int) -> "Quantity":
+    def __rtruediv__(self, other: PintLike | float | int) -> Quantity:
         return _binop(_lift_dimensionless(other), self, _div_ranges, _div_units)
 
-    def __pow__(self, n: int) -> "Quantity":
+    def __pow__(self, n: int) -> Quantity:
         if not isinstance(n, int):
             raise TypeError(
                 f"Quantity exponent must be int (got {type(n).__name__}); "
@@ -373,7 +374,7 @@ def _pow_range_fn(n: int, scale: float):
 # --- operand lifting -------------------------------------------------------
 
 
-def _lift(value: PintLike | float | int, ref_unit: pint.Unit) -> "Quantity":
+def _lift(value: PintLike | float | int, ref_unit: pint.Unit) -> Quantity:
     if isinstance(value, Quantity):
         return value
     if isinstance(value, pint.Quantity):
@@ -385,7 +386,7 @@ def _lift(value: PintLike | float | int, ref_unit: pint.Unit) -> "Quantity":
     raise TypeError(f"Cannot lift {type(value).__name__} to Quantity")
 
 
-def _lift_dimensionless(value: PintLike | float | int) -> "Quantity":
+def _lift_dimensionless(value: PintLike | float | int) -> Quantity:
     if isinstance(value, Quantity):
         return value
     if isinstance(value, pint.Quantity):
@@ -396,11 +397,11 @@ def _lift_dimensionless(value: PintLike | float | int) -> "Quantity":
 
 
 def _binop(
-    left: "Quantity",
+    left: Quantity,
     right_raw: PintLike | float | int,
     range_op,
     unit_op,
-) -> "Quantity":
+) -> Quantity:
     # Bare-number lifting depends on the operation:
     #   - Additive (+/-): treat the number as already-in-left's-unit. ``Q(5 V) + 1``
     #     means 6 V, not 5 V + 1 of any other unit.
@@ -436,8 +437,8 @@ def _binop(
 
 
 def _combine_modes(
-    left: "Quantity", right: "Quantity", range_op, unit_op, out_unit
-) -> "Quantity":
+    left: Quantity, right: Quantity, range_op, unit_op, out_unit
+) -> Quantity:
     left_modes = left.by_mode if left.by_mode is not None else None
     right_modes = right.by_mode if right.by_mode is not None else None
     if left_modes is not None and right_modes is not None:
@@ -465,8 +466,8 @@ def _combine_modes(
 
 
 def _combine_scenarios(
-    left: "Quantity", right: "Quantity", range_op, out_unit
-) -> "Quantity":
+    left: Quantity, right: Quantity, range_op, out_unit
+) -> Quantity:
     left_scen = left.by_scenario
     right_scen = right.by_scenario
     if left_scen is None and right_scen is None:

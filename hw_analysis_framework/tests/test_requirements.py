@@ -4,7 +4,6 @@ from __future__ import annotations
 import math
 from collections.abc import Iterator
 
-import pint
 import pydantic
 import pytest
 
@@ -18,7 +17,7 @@ from framework import (
     TempRange,
     requirements,
 )
-from framework.units import A, Hz, V, degC, mA, mV, ms, percent, registry, uA
+from framework.units import A, Hz, V, degC, mA, ms, mV, percent, uA
 
 
 @pytest.fixture(autouse=True)

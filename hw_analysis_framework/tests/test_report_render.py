@@ -17,7 +17,7 @@ from framework import (
 )
 from framework.modes import ModeSet
 from framework.scenarios import ScenarioSet
-from framework.units import K, V, degC, mA, mW
+from framework.units import degC, mA
 
 
 def _empty_project() -> Project:

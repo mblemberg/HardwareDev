@@ -4,7 +4,7 @@ from __future__ import annotations
 import pint
 
 from framework import units
-from framework.units import A, Ohm, V, kOhm, mA, registry, uA
+from framework.units import A, V, kOhm, mA, registry, uA
 
 
 def test_registry_is_singleton_shared_across_symbols() -> None:

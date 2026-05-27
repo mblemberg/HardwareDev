@@ -16,7 +16,7 @@ from framework.analyses import (
     series_resistance,
     voltage_divider,
 )
-from framework.units import A, V, W, K, Hz, kHz, mA, Ohm, kOhm, nF, uF
+from framework.units import A, Hz, K, Ohm, V, W, kOhm, nF, uF
 
 
 def _close(actual: float, expected: float, tol: float = 1e-9) -> bool:
