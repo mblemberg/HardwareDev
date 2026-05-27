@@ -1,6 +1,6 @@
 # example_analysis
 
-Reference analysis project — exercises features of `hw_analysis_framework` and serves as both documentation and integration test (Section 16 of the design doc).
+Reference analysis project — exercises features of `hw_analysis_framework` and serves as both documentation and integration test (Section 17 of the design doc).
 
 ## Layout
 

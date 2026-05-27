@@ -10,7 +10,7 @@ A reference analysis project. The user-facing side of `hw_analysis_framework`: h
 - Source-of-truth for the project-level config: `project/scenarios.toml`, `project/modes.toml`, `project/requirements.py`.
 - Integration test for the framework — when something breaks here, the framework's surface is wrong.
 
-Section 16 of the design doc calls this out explicitly: *"a reference analysis project (`example_analysis`) exercising every feature, used as both documentation and integration test."*
+Section 17 of the design doc calls this out explicitly: *"a reference analysis project (`example_analysis`) exercising every feature, used as both documentation and integration test."*
 
 ## Layout
 

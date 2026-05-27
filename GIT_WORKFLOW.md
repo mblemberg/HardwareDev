@@ -244,9 +244,9 @@ The three repos look the same from git's perspective. They differ in what makes 
 This is the framework package itself.
 
 - **Test command:** `poetry run pytest` from inside the repo (uses `.venv/Scripts/python.exe`).
-- **Bar for merge:** all tests passing, coverage holding (90%+ on framework, 100% on `Quantity` arithmetic per design doc §16), and mypy strict on `src/framework`. CI should enforce this.
+- **Bar for merge:** all tests passing, coverage holding (90%+ on framework, 100% on `Quantity` arithmetic per design doc §17), and mypy strict on `src/framework`. CI should enforce this.
 - **What reviewers focus on:** alignment with the design doc section called out in the PR description. If the change disagrees with the design doc, the PR should either update the design doc in the same PR or explicitly flag the disagreement so it gets discussed.
-- **Branch naming nuance:** if the change implements an item from §14 of the design doc, include the step number in the branch name (`mb/feat-step-11-standard-analyses`). Makes the PR easy to cross-reference with `PROJECT_STATUS.md`.
+- **Branch naming nuance:** if the change implements an item from §15 of the design doc, include the step number in the branch name (`mb/feat-step-11-standard-analyses`). Makes the PR easy to cross-reference with `PROJECT_STATUS.md`.
 
 ### `components/`
 

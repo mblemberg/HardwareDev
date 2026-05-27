@@ -38,17 +38,36 @@ HardwareDev/
 | 9 | Provenance |
 | 10 | Schematic binding (Altium) |
 | 11 | Claude Code agent setup |
-| 13 | Phase boundaries (v1 / v2 / v3) |
-| 14 | Suggested implementation order (15 ordered steps) |
-| 16 | Quality bar |
+| 12 | Reporting layer |
+| 13 | Layered usage (adoption path) |
+| 14 | Phase boundaries (v1 / v2 / v3) |
+| 15 | Suggested implementation order (15 ordered steps) |
+| 16 | Open decisions before implementation |
+| 17 | Quality bar |
 
 Always check the relevant section before changing core abstractions. If the design and the code disagree, surface it — don't silently diverge.
+
+## Current workflow: review and refinement
+
+The framework was built in **one large unreviewed sprint** to flesh out the design space quickly. As of 2026-05-26 we are in a structured **review-and-refine** phase to convert that vibe-coded surface into code Mike fully understands and trusts.
+
+**Operating rules during this phase:**
+
+- Phases are gated. Don't run ahead into a later phase's surface area without explicit sign-off on the current one.
+- Each phase opens a `review/phaseN` branch from `main` in the relevant repo. Reviews + fixes commit there. On sign-off, merge to `main` and tag (`v0.1-foundation` for Phase 1, etc.). `main` IS the trusted state after each merge.
+- Walk through code with Mike interactively before changing anything. Surface design-vs-code drift; never silently align one to the other.
+- Audit notes are throwaway; the durable record is in commits + tags + CLAUDE.md updates.
+- The methodologies doc (`design_methodologies_and_philosophies.md`) is the **gate between Phase 1 and Phase 2** — Mike reads and approves it before contracts get reviewed.
+
+**Phase 1 scope (current):** `units` → `quantity` (incl. distributions: Gaussian + Uniform) → `modes` → package surface → test-quality audit → basic components (Resistor + Capacitor + one IC instance; families deferred). Detail in `PROJECT_STATUS.md`.
+
+**Phase ordering after 1 (sketch):** contracts → scenarios/modes/requirements → components (full library) → DAG/caching → verification/provenance/reports → standard analyses + worked example. Open to reordering as we go.
 
 ## Implementation status
 
 Authoritative tracker: [`PROJECT_STATUS.md`](PROJECT_STATUS.md) at the workspace root — has the per-step table, test counts, commit pointers, and the "recommended next" recommendation. Cross-conversation context in user memory (`project_hardware_framework.md`).
 
-Headline: steps 1–5, 7, 8, **9a/9b/9c**, and **10** of design doc §14 are shipped; step 6 (netlist parser) is deferred until a real netlist sample is on hand; cross-block `assumed_inputs` validation, step 11 (standard analyses library), and a couple of new feature requests (truth tables for logic blocks, Docker dev env) are the live edges. Read PROJECT_STATUS.md before starting new work — what looks "next" from a section-14 numbering view may have already been deferred for a reason captured there.
+Headline: steps 1–5, 7, 8, **9a/9b/9c**, and **10** of design doc §15 are shipped; step 6 (netlist parser) is deferred until a real netlist sample is on hand; cross-block `assumed_inputs` validation, step 11 (standard analyses library), and a couple of new feature requests (truth tables for logic blocks, Docker dev env) are the live edges. Read PROJECT_STATUS.md before starting new work — what looks "next" from a section-15 numbering view may have already been deferred for a reason captured there.
 
 ## Block ownership rule (organizational, not yet mechanically enforced)
 

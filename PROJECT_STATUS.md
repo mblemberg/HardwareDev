@@ -1,12 +1,14 @@
 # Project status
 
-**Date:** 2026-05-16
+**Date:** 2026-05-26
 
-> Worked example expanded to three blocks (`power_supply` + `mcu` + `can_transceiver`) — see [`example_analysis/system_analysis.ipynb`](example_analysis/system_analysis.ipynb).
+> ⚠️ **Trust state:** the implementation table below reflects what's been *built*, not what's been *reviewed*. As of 2026-05-26 the framework is in a structured **review-and-refine phase** — a single large vibe-coded build sprint produced everything shipped to date, and we're now going back layer by layer to verify each piece against the design doc, tighten correctness, and earn explicit sign-off. Trusted state advances by merging `review/phaseN` branches into `main` and tagging (`v0.1-foundation` for Phase 1, etc.). Until tagged, code on `main` is "shipped but unverified." See workspace `CLAUDE.md` for the workflow and the active Phase 1 step list.
 
 Hardware analysis framework. Three sibling repos under this workspace. Authoritative spec: [`hardware_analysis_framework_design.md`](hardware_analysis_framework_design.md).
 
-## Section 14 implementation progress
+> Worked example expanded to three blocks (`power_supply` + `mcu` + `can_transceiver`) — see [`example_analysis/system_analysis.ipynb`](example_analysis/system_analysis.ipynb).
+
+## Section 15 implementation progress
 
 | # | Step | Status | Notes |
 |---|------|--------|-------|
@@ -84,7 +86,7 @@ Two new component instances live alongside the existing parts:
 
 ## Outstanding follow-ups
 
-- Close `quantity.py` from 93% → 100% per design doc §16 (step 1 quality bar).
+- Close `quantity.py` from 93% → 100% per design doc §17 (step 1 quality bar).
 - Pint auto-lift sugar from design doc §6.1 (`5 * units.V` → Constant Quantity) — needs a custom unit shim, deferred.
 - Caching limitation: source-byte hashing assumes pure functions. Block analyses that read module-level globals instead of taking DAG inputs will see stale cached results. Documented in framework CLAUDE.md.
 - Component library version not yet folded into the cache hash. Will land with step 5 once `components` has a stable surface.
@@ -99,7 +101,7 @@ Two new component instances live alongside the existing parts:
 
 ## Recommended next
 
-With steps 1–5, 7, 8, 9a/b/c, **10**, **11 (v1.1)**, and **12 (v1)** shipped, the framework covers everything in the design doc §14 critical path that doesn't depend on external artifacts (netlist, Altium, Jama-side schema). Remaining active edges:
+With steps 1–5, 7, 8, 9a/b/c, **10**, **11 (v1.1)**, and **12 (v1)** shipped, the framework covers everything in the design doc §15 critical path that doesn't depend on external artifacts (netlist, Altium, Jama-side schema). Remaining active edges:
 
 **Step 11 follow-ons** — `worst_case_droop`, `current_limit_check`, generic `power_dissipation` / `thermal_rise`. Add on demand.
 
