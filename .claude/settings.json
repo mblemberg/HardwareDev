@@ -38,7 +38,8 @@
       "Bash(git -C /Users/mike/code/HardwareDev commit -m ' *)",
       "Bash(/Users/mike/code/HardwareDev/hw_analysis_framework/.venv/bin/python -m pytest -q)",
       "Bash(chmod +x /Users/mike/code/HardwareDev/hw_analysis_framework/scripts/check.sh)",
-      "Bash(/Users/mike/code/HardwareDev/hw_analysis_framework/scripts/check.sh)"
+      "Bash(/Users/mike/code/HardwareDev/hw_analysis_framework/scripts/check.sh)",
+      "Bash(xargs -I{} basename {} .py)"
     ]
   }
 }
