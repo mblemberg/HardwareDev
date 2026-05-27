@@ -33,6 +33,15 @@ def _as_range(v: ScalarOrRange) -> Range:
 
 
 def _collapse(r: Range) -> ScalarOrRange:
+    """Canonicalize a range: a zero-width interval is stored as a scalar.
+
+    This is the framework's canonical-form contract — a value with no spread
+    (``RangeQuantity(5, 5)``, or any interval that pinches to a point during
+    arithmetic, e.g. ``x - x``) is held as a plain scalar, not ``(v, v)``.
+    Scalars and ``(v, v)`` tuples are behaviorally identical downstream because
+    every consumer re-expands via ``_as_range``; collapsing keeps zero-width
+    tuples from propagating indefinitely.
+    """
     min, max = r  # noqa: A001
     return min if min == max else (min, max)
 
@@ -115,6 +124,12 @@ class Quantity:
         if self.by_mode is not None:
             if not self.by_mode:
                 raise ValueError("by_mode must be non-empty if provided")
+            # Collect each mode-child's non-invariant scenario keys; they must
+            # agree across modes. A child that is scenario-invariant (no
+            # by_scenario, or only INVARIANT) opts out — that's the legitimate
+            # "active varies by scenario, sleep is flat" case. Disagreement
+            # among the non-invariant children signals a construction bug.
+            scenario_key_sets: list[tuple[str, frozenset[str]]] = []
             for mode_name, child in self.by_mode.items():
                 if not isinstance(child, Quantity):
                     raise TypeError(
@@ -125,6 +140,21 @@ class Quantity:
                         f"by_mode['{mode_name}'] has unit {child.unit}, "
                         f"expected {self.unit}"
                     )
+                if child.by_scenario is not None:
+                    keys = frozenset(child.by_scenario) - {INVARIANT}
+                    if keys:
+                        scenario_key_sets.append((mode_name, keys))
+            if scenario_key_sets:
+                ref_mode, ref_keys = scenario_key_sets[0]
+                for mode_name, keys in scenario_key_sets[1:]:
+                    if keys != ref_keys:
+                        raise ValueError(
+                            f"by_mode children disagree on scenario keys: mode "
+                            f"'{ref_mode}' has {set(ref_keys)} but mode "
+                            f"'{mode_name}' has {set(keys)}; non-invariant scenario "
+                            f"keys must match across modes (use INVARIANT for "
+                            f"scenario-invariant modes)"
+                        )
         if self.by_scenario is not None:
             coerced = {
                 k: _coerce_scenario_value(v, self.unit)

@@ -90,6 +90,48 @@ class TestConstruction:
         with pytest.raises(ValueError):
             Quantity(unit=V, by_mode={"active": Constant(3.3, mV)})
 
+    def test_by_mode_children_with_disjoint_scenario_keys_rejected(self) -> None:
+        with pytest.raises(ValueError, match="scenario keys"):
+            Quantity(
+                unit=A,
+                by_mode={
+                    "active": Quantity(unit=A, by_scenario={"cold": 0.15}),
+                    "sleep": Quantity(unit=A, by_scenario={"hot": 10e-6}),
+                },
+            )
+
+    def test_by_mode_children_with_matching_scenario_keys_ok(self) -> None:
+        q = Quantity(
+            unit=A,
+            by_mode={
+                "active": Quantity(unit=A, by_scenario={"cold": 0.15, "hot": 0.18}),
+                "sleep": Quantity(unit=A, by_scenario={"cold": 10e-6, "hot": 12e-6}),
+            },
+        )
+        assert math.isclose(q.at(scenario="cold", mode="active"), 0.15)
+
+    def test_by_mode_scenario_varying_mode_alongside_invariant_mode_ok(self) -> None:
+        # The legitimate mixed case: active varies by scenario, sleep is flat.
+        q = Quantity(
+            unit=A,
+            by_mode={
+                "active": Quantity(unit=A, by_scenario={"cold": 0.15, "hot": 0.18}),
+                "sleep": Constant(10e-6, A),
+            },
+        )
+        assert math.isclose(q.at(scenario="hot", mode="sleep"), 10e-6)
+
+    def test_by_mode_invariant_scenario_key_does_not_trigger_mismatch(self) -> None:
+        # A child keyed only by INVARIANT opts out of the cross-mode check.
+        q = Quantity(
+            unit=A,
+            by_mode={
+                "active": Quantity(unit=A, by_scenario={"cold": 0.15, "hot": 0.18}),
+                "sleep": Quantity(unit=A, by_scenario={INVARIANT: 10e-6}),
+            },
+        )
+        assert math.isclose(q.at(scenario="cold", mode="sleep"), 10e-6)
+
     def test_by_scenario_pint_values_coerced(self) -> None:
         q = Quantity(unit=V, by_scenario={"nom": 3300 * mV, "max": 3.6 * V})
         assert math.isclose(q.at(scenario="nom"), 3.3)
