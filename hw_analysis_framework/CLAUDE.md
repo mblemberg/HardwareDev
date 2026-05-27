@@ -74,13 +74,22 @@ The framework's `tests/` runs against `hw_analysis_framework/.venv`; example_ana
 
 ## Dev workflow
 
-```powershell
+```bash
 # from this directory:
 poetry install -E "dev notebooks"
-poetry run pytest                       # 348 tests as of FR1 (truth tables)
+poetry run pytest                       # 401 tests as of Step 1.3a
 poetry run pytest --cov                 # coverage report
 poetry run mypy                         # strict on src/framework
+poetry run ruff check src tests         # lint (broad rule set per Step 1.2)
+./scripts/check.sh                      # all four in one run; aggregates failures
 ```
+
+`scripts/check.sh` is the pre-commit aggregator — runs ruff + mypy +
+framework pytest + components pytest in sequence, continues past
+failures, and reports a summary. It re-uses the framework venv to run
+components tests (components has no venv of its own). example_analysis
+tests are excluded by design (they include a deliberately-failing
+verification — see gotcha #12).
 
 The venv lives at `.venv/` (Poetry `virtualenvs.in-project = true`). Point Jupyter / VS Code kernels at `.venv/Scripts/python.exe`.
 
