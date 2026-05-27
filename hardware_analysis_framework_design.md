@@ -88,7 +88,10 @@ class Quantity:
 **Sugar:**
 - `Constant(value, unit)` — for mode/scenario-invariant values
 - `RangeQuantity(lo, hi, unit)` — for simple min/max without scenario detail
-- Pint expressions auto-lift: `5 * units.V` returns a Constant Quantity, not a raw Pint Quantity
+
+**Construction vs arithmetic — explicit/forgiving asymmetry:**
+- **Construction is explicit.** `5 * units.V` returns a raw `pint.Quantity`, NOT a framework Quantity. To construct a framework Quantity, write `Constant(5, units.V)` (or `RangeQuantity(lo, hi, unit)`, or the full `Quantity(...)` form). Auto-lifting at construction was considered (decided 2026-05-26) and rejected: it would require a `FrameworkUnit` wrapper around `pint.Unit` with `__getattr__` forwarding, divergent behavior from raw Pint, and a separate code path to maintain — for the sake of removing one `Constant(...)` call at the point of value declaration. Explicit construction won.
+- **Arithmetic is forgiving.** When a framework `Quantity` is combined with a raw `pint.Quantity` in arithmetic (`Constant(5, V) + 3 * registry.volt`), the framework lifts the Pint operand into a `Constant` on the fly so the math works. The asymmetry is intentional: writing `Constant(...)` once at the point of value declaration is clarifying; writing it around every operand in every expression is just noise.
 
 ### 6.2 Scenario
 

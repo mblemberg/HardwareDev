@@ -1,7 +1,9 @@
 """Single shared Pint registry — `framework.units`.
 
-Per design doc section 15.2: a single shared registry exposed as
-`framework.units`; consumers must not instantiate their own UnitRegistry.
+Per design doc section 16 item 2 (Open Decisions): a single shared registry
+exposed as `framework.units`; consumers must not instantiate their own
+UnitRegistry. The ruff lint rule on `pint.UnitRegistry` enforces this
+mechanically (configured in `pyproject.toml`).
 
 Importing from `framework.units` directly:
 
@@ -11,27 +13,21 @@ All of the bound symbols are `pint.Unit` instances (`5 * V` produces a
 `pint.Quantity`). `framework.quantity` lifts `pint.Quantity` operands to
 the framework's `Quantity` type when used in arithmetic.
 """
+
 from __future__ import annotations
 
 import pint
 
-registry: pint.UnitRegistry = pint.UnitRegistry()
+# the singleton unit registry.  linter forbids creation of alternates.
+registry = pint.UnitRegistry()  # noqa: TID251
+
+# use the pint formatting mini language
 registry.formatter.default_format = "~P"
 
-# Pint serializes quantities by unit *name*. On unpickle, pint looks up the
-# name in the "application registry" -- which by default is the registry of
-# the unpickling module, not the one that pickled the value. That causes
-# "Cannot operate with Unit and Unit of different registries" errors when a
-# cached Quantity is loaded and combined with a freshly constructed one.
-# Pinning the application registry to ours globally fixes this.
+# instruct pint to use this registry to decode units
 pint.set_application_registry(registry)
 
-# Engineering naming alias. The design doc (section 6.5) prescribes capitalized
-# `Ohm` for Python identifiers; this lets strings like "5 Ohm" parse via
-# `framework._toml.parse_pint`. Prefixed forms (`mOhm`, `kOhm`) can't be
-# aliased the same way -- Pint constructs them at parse time, not as canonical
-# names -- so in strings, use the spelled-out form ("5 milliohm", "10 kiloohm").
-# Python code keeps the capitalized engineering form (the symbols exported below).
+# pint uses lower case o for Ohm, so we fix that here with an alias in the registry
 registry.define("@alias ohm = Ohm")
 
 # Voltage
@@ -51,6 +47,7 @@ Ohm = registry.ohm
 mOhm = registry.milliohm
 kOhm = registry.kiloohm
 MOhm = registry.megaohm
+GOhm = registry.gigaohm
 
 # Power
 W = registry.watt
@@ -85,6 +82,7 @@ pC = registry.picocoulomb
 # Temperature (Kelvin-based scale used for deltas; degC for absolute)
 K = registry.kelvin
 degC = registry.degC
+degF = registry.degF
 
 # Time
 s = registry.second
@@ -92,6 +90,8 @@ ms = registry.millisecond
 us = registry.microsecond
 ns = registry.nanosecond
 ps = registry.picosecond
+minute = registry.minute   # NOT `min` -- would shadow the Python built-in
+hour = registry.hour
 
 # Dimensionless ratios
 ppm = registry.ppm
@@ -102,6 +102,7 @@ __all__ = [
     "C",
     "F",
     "GHz",
+    "GOhm",
     "H",
     "Hz",
     "K",
@@ -111,6 +112,8 @@ __all__ = [
     "V",
     "W",
     "degC",
+    "degF",
+    "hour",
     "kHz",
     "kOhm",
     "kV",
@@ -121,6 +124,7 @@ __all__ = [
     "mOhm",
     "mV",
     "mW",
+    "minute",
     "ms",
     "nA",
     "nC",

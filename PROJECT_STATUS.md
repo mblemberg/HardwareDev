@@ -87,7 +87,7 @@ Two new component instances live alongside the existing parts:
 ## Outstanding follow-ups
 
 - Close `quantity.py` from 93% → 100% per design doc §17 (step 1 quality bar).
-- Pint auto-lift sugar from design doc §6.1 (`5 * units.V` → Constant Quantity) — needs a custom unit shim, deferred.
+- ~~Pint auto-lift sugar from design doc §6.1 (`5 * units.V` → Constant Quantity)~~ — **rejected 2026-05-26 in favor of explicit `Constant(...)` construction.** Design doc §6.1 updated to reflect the asymmetry: explicit at construction, forgiving in arithmetic. No code change required (was never built).
 - Caching limitation: source-byte hashing assumes pure functions. Block analyses that read module-level globals instead of taking DAG inputs will see stale cached results. Documented in framework CLAUDE.md.
 - Component library version not yet folded into the cache hash. Will land with step 5 once `components` has a stable surface.
 - **Mathcad inputs-only worksheet emitter** (design spec §12.9, methodologies §11). Generates `.mcdx` per (analysis × scenario) containing requirements, component parameters, operating conditions, contract inputs, expected results, and an empty derivation region for independent re-derivation by a second engineer. Scheduled for v2 (see §14 Phase Boundaries); pull forward into v1 if a contractual Mathcad deliverable surfaces. Implementation choice (raw .mcdx XML emission vs. COM automation via `pywin32`) deferred until a project requires it.
