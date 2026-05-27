@@ -2,8 +2,8 @@
 
 A `Scenario` is a Pydantic-validated record with:
 
-- ``name``      — required, unique within its set, not equal to ``"_"``
-                  (which is reserved as the scenario-invariant marker on Quantity).
+- ``name``      — required, unique within its set, not equal to ``INVARIANT``
+                  (``"_ALL_"``, reserved as the scenario-invariant marker on Quantity).
 - ``description`` — optional human-readable note.
 - ``owner_block`` — None for project-global scenarios; set for block-specific
                   corners (design doc 6.2: the RF block may add

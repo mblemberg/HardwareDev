@@ -108,7 +108,7 @@ class ResistorFamily(BaseModel):
 def _compact_value_str(value: Any) -> str:
     """Best-effort short rendering of a value for auto-generated part numbers."""
     if isinstance(value, Quantity):
-        nom = value.nominal
+        nom = value.value
         if isinstance(nom, tuple):
             return f"{nom[0]}-{nom[1]}{value.unit:~P}"
         return f"{nom}{value.unit:~P}".replace(" ", "")

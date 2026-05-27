@@ -106,7 +106,7 @@ def _coerce(
     Accepts:
       - ``pint.Quantity`` — used directly.
       - framework ``Quantity`` — must be a scalar (no scenario/mode axes,
-        no range); the nominal is unwrapped.
+        no range); the value is unwrapped.
       - ``str`` — parsed via :func:`framework._toml.parse_pint`.
 
     Optionally checks dimensionality (raises if mismatched).
@@ -122,7 +122,7 @@ def _coerce(
                 f"{location}: requirement field must be a scalar Quantity "
                 "(no scenario or mode axes)"
             )
-        nom = value.nominal
+        nom = value.value
         if isinstance(nom, tuple):
             raise ValueError(f"{location}: requirement field must be a scalar (not a range)")
         assert nom is not None

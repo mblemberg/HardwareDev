@@ -7,6 +7,7 @@ from typing import Callable
 import pytest
 
 from framework import (
+    INVARIANT,
     Constant,
     Quantity,
     RangeQuantity,
@@ -108,8 +109,8 @@ class TestResultShape:  # noqa: D101 — pytest class group
     def test_scenario_mode_str(self) -> None:
         assert str(ScenarioMode(scenario=None, mode=None)) == "(no axes)"
         assert "mode='active'" in str(ScenarioMode(mode="active"))
-        # INVARIANT scenario "_" is hidden
-        assert str(ScenarioMode(scenario="_", mode="active")) == "mode='active'"
+        # INVARIANT scenario is hidden in str output
+        assert str(ScenarioMode(scenario=INVARIANT, mode="active")) == "mode='active'"
 
 
 # ---------------------------------------------------------------------------

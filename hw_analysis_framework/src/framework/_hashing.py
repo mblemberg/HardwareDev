@@ -53,7 +53,7 @@ def canonical_repr(value: Any) -> str:
         return (
             "Quantity("
             f"unit={value.unit!s},"
-            f"nominal={canonical_repr(value.nominal)},"
+            f"value={canonical_repr(value.value)},"
             f"by_scenario={canonical_repr(value.by_scenario)},"
             f"by_mode={canonical_repr(value.by_mode)}"
             ")"

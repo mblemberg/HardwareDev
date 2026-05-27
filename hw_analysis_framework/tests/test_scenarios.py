@@ -8,7 +8,7 @@ import pint
 import pydantic
 import pytest
 
-from framework import TomlError, Scenario, ScenarioSet, load_scenarios
+from framework import INVARIANT, TomlError, Scenario, ScenarioSet, load_scenarios
 from framework.units import V, degC, ppm, registry
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -91,9 +91,9 @@ class TestScenarioSet:
 
 
 class TestScenarioValidation:
-    def test_reserved_name_underscore_rejected(self) -> None:
+    def test_reserved_invariant_name_rejected(self) -> None:
         with pytest.raises(pydantic.ValidationError) as exc_info:
-            Scenario(name="_")
+            Scenario(name=INVARIANT)
         assert "reserved" in str(exc_info.value).lower()
 
     def test_empty_name_rejected(self) -> None:

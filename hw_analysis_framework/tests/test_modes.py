@@ -6,7 +6,7 @@ from pathlib import Path
 import pydantic
 import pytest
 
-from framework import Mode, ModeSet, TomlError, load_modes
+from framework import INVARIANT, Mode, ModeSet, TomlError, load_modes
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -55,9 +55,9 @@ class TestModeSet:
 
 
 class TestModeValidation:
-    def test_reserved_name_underscore_rejected(self) -> None:
+    def test_reserved_invariant_name_rejected(self) -> None:
         with pytest.raises(pydantic.ValidationError):
-            Mode(name="_")
+            Mode(name=INVARIANT)
 
     def test_empty_name_rejected(self) -> None:
         with pytest.raises(pydantic.ValidationError):

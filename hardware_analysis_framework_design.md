@@ -64,16 +64,19 @@ The atomic data type. Every physical or derived value in the system is a `Quanti
 ```python
 @dataclass(frozen=True)
 class Quantity:
-    by_scenario: dict[str, ScalarOrRange] | None   # values per named scenario
-    by_mode:     dict[str, "Quantity"] | None      # values per operating mode
-    distribution: Distribution | None              # statistical distribution (optional)
     unit:         pint.Unit                         # mandatory
+    by_scenario:  dict[str, ScalarOrRange] | None   # values per named scenario
+    by_mode:      dict[str, "Quantity"] | None      # values per operating mode
+    value:        ScalarOrRange | None              # scalar or (lo, hi) range when neither axis is set
+    distribution: Distribution | None               # statistical distribution (optional)
     provenance:   ProvenanceRef                     # link to producing DAG node
 ```
 
 **Rules:**
 - Every Quantity has a unit. Arithmetic without compatible units raises at compute time.
 - A Quantity can vary along `by_scenario`, `by_mode`, both, or neither. Most vary along one axis; constants vary along none.
+- At least one of `by_scenario`, `by_mode`, or `value` must be set — a Quantity with no data is rejected at construction.
+- `value` holds the scalar or `(lo, hi)` range at the no-axes leaf. `Constant(...)` and `RangeQuantity(...)` are sugar over `Quantity(unit=..., value=...)`.
 - If both `by_scenario` and `distribution` are present, the distribution is canonical; corners are evaluation points (drawn from the distribution or specified by engineering judgment).
 - Quantities are immutable. Operations return new Quantities.
 

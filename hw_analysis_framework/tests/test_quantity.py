@@ -69,7 +69,7 @@ class TestConstruction:
 
     def test_unit_must_be_pint_unit(self) -> None:
         with pytest.raises(TypeError):
-            Quantity(unit="V", nominal=3.3)  # type: ignore[arg-type]
+            Quantity(unit="V", value=3.3)  # type: ignore[arg-type]
 
     def test_must_specify_at_least_one_axis(self) -> None:
         with pytest.raises(ValueError):

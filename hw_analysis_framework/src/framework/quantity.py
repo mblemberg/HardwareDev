@@ -8,6 +8,7 @@ Range support: a scenario value may be a scalar (float, in `unit`) or a
 2-tuple (lo, hi) — interval arithmetic is performed across ranges. Distributions
 are deferred to a later phase (section 7.5, Monte Carlo opt-in).
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
@@ -23,7 +24,7 @@ Range = tuple[float, float]
 ScalarOrRange = Union[Scalar, Range]
 PintLike = Union[pint.Quantity, "Quantity"]
 
-INVARIANT = "_"
+INVARIANT = "_ALL_"
 
 
 def _as_range(v: ScalarOrRange) -> Range:
@@ -41,7 +42,7 @@ def _coerce_to_unit(
     """Convert a raw number, Pint quantity, or scalar framework Quantity into ``unit``.
 
     Scalar framework Quantities (no scenario/mode/range axes) are unwrapped to
-    their nominal value and converted offset-aware. Axed Quantities raise —
+    their scalar value and converted offset-aware. Axed Quantities raise —
     spec bounds must be single points.
     """
     if isinstance(value, pint.Quantity):
@@ -52,7 +53,7 @@ def _coerce_to_unit(
                 "spec bound must be a scalar Quantity, not one carrying "
                 "scenario or mode axes"
             )
-        nom = value.nominal
+        nom = value.value
         if isinstance(nom, tuple):
             raise TypeError("spec bound must be a scalar, not a range")
         assert nom is not None
@@ -86,10 +87,10 @@ class Quantity:
 
     Construction rules:
     - `unit` is mandatory.
-    - `by_scenario` keys are scenario names; "_" denotes scenario-invariant.
+    - `by_scenario` keys are scenario names; ``INVARIANT`` (``"_ALL_"``) denotes scenario-invariant.
     - `by_mode` values are themselves Quantities (recursive). Inner Quantities
       must share the outer's unit.
-    - At least one of `by_scenario`, `by_mode`, or `nominal` must be set.
+    - At least one of `by_scenario`, `by_mode`, or `value` must be set.
 
     Use the factories `Constant(value, unit)` and `RangeQuantity(lo, hi, unit)`
     for the common no-axis cases.
@@ -98,15 +99,15 @@ class Quantity:
     unit: pint.Unit
     by_scenario: dict[str, ScalarOrRange] | None = None
     by_mode: dict[str, "Quantity"] | None = None
-    nominal: ScalarOrRange | None = None
+    value: ScalarOrRange | None = None
     provenance: ProvenanceRef = field(default_factory=ProvenanceRef)
 
     def __post_init__(self) -> None:
         if not isinstance(self.unit, pint.Unit):
             raise TypeError(f"Quantity.unit must be a pint.Unit, got {type(self.unit)}")
-        if self.by_scenario is None and self.by_mode is None and self.nominal is None:
+        if self.by_scenario is None and self.by_mode is None and self.value is None:
             raise ValueError(
-                "Quantity must specify at least one of: by_scenario, by_mode, nominal"
+                "Quantity must specify at least one of: by_scenario, by_mode, value"
             )
         if self.by_scenario is not None and not self.by_scenario:
             raise ValueError("by_scenario must be non-empty if provided")
@@ -129,9 +130,9 @@ class Quantity:
                 for k, v in self.by_scenario.items()
             }
             object.__setattr__(self, "by_scenario", coerced)
-        if self.nominal is not None:
+        if self.value is not None:
             object.__setattr__(
-                self, "nominal", _coerce_scenario_value(self.nominal, self.unit)
+                self, "value", _coerce_scenario_value(self.value, self.unit)
             )
 
     def at(self, scenario: str | None = None, mode: str | None = None) -> ScalarOrRange:
@@ -150,9 +151,7 @@ class Quantity:
             try:
                 child = self.by_mode[mode]
             except KeyError as e:
-                raise KeyError(
-                    f"Mode '{mode}' not in {list(self.by_mode)}"
-                ) from e
+                raise KeyError(f"Mode '{mode}' not in {list(self.by_mode)}") from e
             return child.at(scenario=scenario)
         if self.by_scenario is not None:
             if scenario is not None and scenario in self.by_scenario:
@@ -164,11 +163,9 @@ class Quantity:
                     f"This Quantity is scenario-dependent (scenarios: "
                     f"{list(self.by_scenario)}); pass scenario= to evaluate."
                 )
-            raise KeyError(
-                f"Scenario '{scenario}' not in {list(self.by_scenario)}"
-            )
-        assert self.nominal is not None
-        return self.nominal
+            raise KeyError(f"Scenario '{scenario}' not in {list(self.by_scenario)}")
+        assert self.value is not None
+        return self.value
 
     def within(
         self,
@@ -212,8 +209,8 @@ class Quantity:
             for s, v in self.by_scenario.items():
                 yield (s, None, v)
             return
-        assert self.nominal is not None
-        yield (None, None, self.nominal)
+        assert self.value is not None
+        yield (None, None, self.value)
 
     def _iter_scenario_values(self) -> list[ScalarOrRange]:
         if self.by_mode is not None:
@@ -223,8 +220,8 @@ class Quantity:
             return out
         if self.by_scenario is not None:
             return list(self.by_scenario.values())
-        assert self.nominal is not None
-        return [self.nominal]
+        assert self.value is not None
+        return [self.value]
 
     def to(self, target_unit: pint.Unit) -> "Quantity":
         """Return an equivalent Quantity expressed in `target_unit`.
@@ -268,9 +265,9 @@ class Quantity:
                 for k, v in self.by_scenario.items()
             }
             return replace(self, by_scenario=new_scen, unit=u)
-        assert self.nominal is not None
-        new_nom = _collapse(tuple(fn(x) for x in _as_range(self.nominal)))  # type: ignore[arg-type]
-        return replace(self, nominal=new_nom, unit=u)
+        assert self.value is not None
+        new_nom = _collapse(tuple(fn(x) for x in _as_range(self.value)))  # type: ignore[arg-type]
+        return replace(self, value=new_nom, unit=u)
 
     def __neg__(self) -> "Quantity":
         return self._map_scalars(lambda x: -x)
@@ -368,7 +365,8 @@ def _div_ranges(a: ScalarOrRange, b: ScalarOrRange) -> ScalarOrRange:
 
 def _pow_range_fn(n: int, scale: float):
     def _fn(x: float) -> float:
-        return scale * (x ** n)
+        return scale * (x**n)
+
     return _fn
 
 
@@ -420,7 +418,10 @@ def _binop(
 
     # Convert right into left's unit *for additive ops* (where unit_op == _add_units).
     if unit_op is _add_units:
-        if registry.Quantity(1.0, right.unit).dimensionality != registry.Quantity(1.0, left.unit).dimensionality:
+        if (
+            registry.Quantity(1.0, right.unit).dimensionality
+            != registry.Quantity(1.0, left.unit).dimensionality
+        ):
             raise pint.DimensionalityError(left.unit, right.unit)
         if right.unit != left.unit:
             right = right.to(left.unit)
@@ -434,7 +435,9 @@ def _binop(
     return _combine_scenarios(left, right, range_op, out_unit)
 
 
-def _combine_modes(left: "Quantity", right: "Quantity", range_op, unit_op, out_unit) -> "Quantity":
+def _combine_modes(
+    left: "Quantity", right: "Quantity", range_op, unit_op, out_unit
+) -> "Quantity":
     left_modes = left.by_mode if left.by_mode is not None else None
     right_modes = right.by_mode if right.by_mode is not None else None
     if left_modes is not None and right_modes is not None:
@@ -448,33 +451,40 @@ def _combine_modes(left: "Quantity", right: "Quantity", range_op, unit_op, out_u
             for m in left_modes
         }
     elif left_modes is not None:
-        new_modes = {m: _binop(child, right, range_op, unit_op) for m, child in left_modes.items()}
+        new_modes = {
+            m: _binop(child, right, range_op, unit_op)
+            for m, child in left_modes.items()
+        }
     else:
         assert right_modes is not None
-        new_modes = {m: _binop(left, child, range_op, unit_op) for m, child in right_modes.items()}
+        new_modes = {
+            m: _binop(left, child, range_op, unit_op)
+            for m, child in right_modes.items()
+        }
     return Quantity(unit=out_unit, by_mode=new_modes)
 
 
-def _combine_scenarios(left: "Quantity", right: "Quantity", range_op, out_unit) -> "Quantity":
+def _combine_scenarios(
+    left: "Quantity", right: "Quantity", range_op, out_unit
+) -> "Quantity":
     left_scen = left.by_scenario
     right_scen = right.by_scenario
     if left_scen is None and right_scen is None:
-        assert left.nominal is not None and right.nominal is not None
-        return Quantity(unit=out_unit, nominal=range_op(left.nominal, right.nominal))
+        assert left.value is not None and right.value is not None
+        return Quantity(unit=out_unit, value=range_op(left.value, right.value))
     if left_scen is not None and right_scen is not None:
         keys = _aligned_scenario_keys(left_scen, right_scen)
         new_scen = {
-            k: range_op(_pick(left_scen, k), _pick(right_scen, k))
-            for k in keys
+            k: range_op(_pick(left_scen, k), _pick(right_scen, k)) for k in keys
         }
         return Quantity(unit=out_unit, by_scenario=new_scen)
     if left_scen is not None:
-        scalar_r = right.nominal if right.nominal is not None else None
+        scalar_r = right.value if right.value is not None else None
         assert scalar_r is not None
         new_scen = {k: range_op(v, scalar_r) for k, v in left_scen.items()}
         return Quantity(unit=out_unit, by_scenario=new_scen)
     assert right_scen is not None
-    scalar_l = left.nominal
+    scalar_l = left.value
     assert scalar_l is not None
     new_scen = {k: range_op(scalar_l, v) for k, v in right_scen.items()}
     return Quantity(unit=out_unit, by_scenario=new_scen)
@@ -511,10 +521,10 @@ def Constant(value: float | pint.Quantity, unit: pint.Unit | None = None) -> Qua
     if isinstance(value, pint.Quantity):
         if unit is None:
             unit = value.units
-        return Quantity(unit=unit, nominal=float(value.to(unit).magnitude))
+        return Quantity(unit=unit, value=float(value.to(unit).magnitude))
     if unit is None:
         raise TypeError("Constant requires a unit when value is not a pint.Quantity")
-    return Quantity(unit=unit, nominal=float(value))
+    return Quantity(unit=unit, value=float(value))
 
 
 def RangeQuantity(
@@ -529,15 +539,19 @@ def RangeQuantity(
         lo_f = float(lo.to(unit).magnitude)
     else:
         if unit is None:
-            raise TypeError("RangeQuantity requires a unit when lo is not a pint.Quantity")
+            raise TypeError(
+                "RangeQuantity requires a unit when lo is not a pint.Quantity"
+            )
         lo_f = float(lo)
     if isinstance(hi, pint.Quantity):
         hi_f = float(hi.to(unit).magnitude)
     else:
         hi_f = float(hi)
     if lo_f > hi_f:
-        raise ValueError(f"RangeQuantity lo ({lo_f}) must be <= hi ({hi_f}) in unit {unit}")
-    return Quantity(unit=unit, nominal=(lo_f, hi_f) if lo_f != hi_f else lo_f)
+        raise ValueError(
+            f"RangeQuantity lo ({lo_f}) must be <= hi ({hi_f}) in unit {unit}"
+        )
+    return Quantity(unit=unit, value=(lo_f, hi_f) if lo_f != hi_f else lo_f)
 
 
 __all__ = [

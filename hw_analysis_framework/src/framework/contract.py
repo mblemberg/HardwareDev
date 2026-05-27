@@ -35,6 +35,8 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Callable, TypeVar
 
+from framework.quantity import INVARIANT
+
 if TYPE_CHECKING:
     from framework.quantity import Quantity, ScalarOrRange
 
@@ -287,7 +289,7 @@ def format_mismatches(mismatches: list[ContractMismatch]) -> str:
     lines = [f"{len(mismatches)} contract mismatch(es):"]
     for m in mismatches:
         where: list[str] = []
-        if m.scenario is not None and m.scenario != "_":
+        if m.scenario is not None and m.scenario != INVARIANT:
             where.append(f"scenario={m.scenario!r}")
         if m.mode is not None:
             where.append(f"mode={m.mode!r}")
@@ -511,8 +513,8 @@ def _evaluate_at(
     if q.by_scenario is not None:
         if scenario is not None and scenario in q.by_scenario:
             return q.by_scenario[scenario]
-        if "_" in q.by_scenario:
-            return q.by_scenario["_"]
+        if INVARIANT in q.by_scenario:
+            return q.by_scenario[INVARIANT]
         if scenario is None:
             # Only one entry and it isn't INVARIANT — accept it as the bound.
             if len(q.by_scenario) == 1:
@@ -526,8 +528,8 @@ def _evaluate_at(
             f"scenario {scenario!r} not in declared scenarios "
             f"{list(q.by_scenario)}"
         )
-    assert q.nominal is not None
-    return q.nominal
+    assert q.value is not None
+    return q.value
 
 
 __all__ = [

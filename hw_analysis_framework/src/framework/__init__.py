@@ -27,7 +27,7 @@ from framework.provenance import (
     ProvenanceRef,
 )
 from framework.logic import TruthTable, TruthTableMismatch, compare_truth_tables
-from framework.quantity import Constant, Quantity, RangeQuantity
+from framework.quantity import INVARIANT, Constant, Quantity, RangeQuantity
 from framework.reports import (
     block_report_html,
     display_block_report,
@@ -67,6 +67,7 @@ from framework.verification import (
 __all__ = [
     "Component",
     "Constant",
+    "INVARIANT",
     "ContractMeta",
     "ContractMismatch",
     "ContractViolation",

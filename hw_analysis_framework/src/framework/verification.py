@@ -46,7 +46,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Callable, TypeVar
 
-from framework.quantity import Quantity, _as_range, _coerce_to_unit
+from framework.quantity import INVARIANT, Quantity, _as_range, _coerce_to_unit
 
 if TYPE_CHECKING:
     import pint
@@ -84,7 +84,7 @@ class ScenarioMode:
 
     def __str__(self) -> str:
         parts: list[str] = []
-        if self.scenario is not None and self.scenario != "_":
+        if self.scenario is not None and self.scenario != INVARIANT:
             parts.append(f"scenario={self.scenario!r}")
         if self.mode is not None:
             parts.append(f"mode={self.mode!r}")

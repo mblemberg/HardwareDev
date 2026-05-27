@@ -39,7 +39,7 @@ from framework.contract import (
     get_contract_meta,
     is_contract,
 )
-from framework.quantity import Quantity, _as_range
+from framework.quantity import INVARIANT, Quantity, _as_range
 from framework.verification import ScenarioMode, Severity, TestResult
 
 
@@ -551,7 +551,7 @@ def _render_contract_block(
             else:
                 a_val = None
             row_cells: list[str] = []
-            row_cells.append(escape("—" if scenario in (None, "_") else scenario))
+            row_cells.append(escape("—" if scenario in (None, INVARIANT) else scenario))
             row_cells.append(escape("—" if mode is None else mode))
             row_cells.append(escape(_format_value(d_val, declared.unit)) if d_val is not None else '<span class="vt-muted">—</span>')
             if isinstance(actual, Quantity):
@@ -661,12 +661,12 @@ def _evaluate_safely(q: Quantity, *, scenario: str | None, mode: str | None) -> 
     if q.by_scenario is not None:
         if scenario is not None and scenario in q.by_scenario:
             return q.by_scenario[scenario]
-        if "_" in q.by_scenario:
-            return q.by_scenario["_"]
+        if INVARIANT in q.by_scenario:
+            return q.by_scenario[INVARIANT]
         if scenario is None and len(q.by_scenario) == 1:
             return next(iter(q.by_scenario.values()))
         return None
-    return q.nominal
+    return q.value
 
 
 def _block_test_results(
