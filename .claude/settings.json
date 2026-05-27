@@ -22,7 +22,23 @@
       "PowerShell(poetry run pytest*)",
       "PowerShell(poetry run mypy*)",
       "PowerShell(poetry env *)",
-      "PowerShell(poetry show *)"
+      "PowerShell(poetry show *)",
+      "Bash(ls /Users/mike/.claude/projects/-Users-mike-code-HardwareDev/memory/ 2>/dev/null && echo \"---\" && cat /Users/mike/.claude/projects/-Users-mike-code-HardwareDev/memory/MEMORY.md 2>/dev/null | head -50)",
+      "Read(//Users/mike/.claude/projects/-Users-mike-code-HardwareDev/memory/**)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(poetry install *)",
+      "Bash(poetry lock *)",
+      "Bash(poetry run *)",
+      "Bash(awk '/^## 6\\\\.1/,/^## 6\\\\.2/' hardware_analysis_framework_design.md)",
+      "Bash(grep -rn --include='*.md' -E '\\\\bnominal\\\\b|\"_\"|`_`' .)",
+      "Bash(git -C /Users/mike/code/HardwareDev status --short)",
+      "Bash(git -C /Users/mike/code/HardwareDev diff --stat -- hw_analysis_framework/src/framework/quantity.py)",
+      "Bash(git -C /Users/mike/code/HardwareDev add hw_analysis_framework/src/framework/quantity.py)",
+      "Bash(git -C /Users/mike/code/HardwareDev commit -m ' *)",
+      "Bash(/Users/mike/code/HardwareDev/hw_analysis_framework/.venv/bin/python -m pytest -q)",
+      "Bash(chmod +x /Users/mike/code/HardwareDev/hw_analysis_framework/scripts/check.sh)",
+      "Bash(/Users/mike/code/HardwareDev/hw_analysis_framework/scripts/check.sh)"
     ]
   }
 }
