@@ -5,7 +5,7 @@ A constant varies along neither. Arithmetic propagates both axes, enforces unit
 compatibility via Pint, and produces a new immutable Quantity.
 
 Range support: a scenario value may be a scalar (float, in `unit`) or a
-2-tuple (lo, hi) — interval arithmetic is performed across ranges. Distributions
+2-tuple (min, max) — interval arithmetic is performed across ranges. Distributions
 are deferred to a later phase (section 7.5, Monte Carlo opt-in).
 """
 
@@ -32,8 +32,8 @@ def _as_range(v: ScalarOrRange) -> Range:
 
 
 def _collapse(r: Range) -> ScalarOrRange:
-    lo, hi = r
-    return lo if lo == hi else (lo, hi)
+    min, max = r  # noqa: A001
+    return min if min == max else (min, max)
 
 
 def _coerce_to_unit(
@@ -68,16 +68,16 @@ def _coerce_scenario_value(
     if isinstance(value, tuple):
         if len(value) != 2:
             raise ValueError(
-                f"Range scenario value must be (lo, hi); got tuple of length {len(value)}"
+                f"Range scenario value must be (min, max); got tuple of length {len(value)}"
             )
-        lo, hi = value
-        lo_f = _coerce_to_unit(lo, unit)
-        hi_f = _coerce_to_unit(hi, unit)
-        if lo_f > hi_f:
+        min, max = value  # noqa: A001
+        min_f = _coerce_to_unit(min, unit)
+        max_f = _coerce_to_unit(max, unit)
+        if min_f > max_f:
             raise ValueError(
-                f"Range scenario lo ({lo_f}) must be <= hi ({hi_f}) in unit {unit}"
+                f"Range scenario min ({min_f}) must be <= max ({max_f}) in unit {unit}"
             )
-        return _collapse((lo_f, hi_f))
+        return _collapse((min_f, max_f))
     return _coerce_to_unit(value, unit)
 
 
@@ -92,7 +92,7 @@ class Quantity:
       must share the outer's unit.
     - At least one of `by_scenario`, `by_mode`, or `value` must be set.
 
-    Use the factories `Constant(value, unit)` and `RangeQuantity(lo, hi, unit)`
+    Use the factories `Constant(value, unit)` and `RangeQuantity(min, max, unit)`
     for the common no-axis cases.
     """
 
@@ -169,23 +169,23 @@ class Quantity:
 
     def within(
         self,
-        lo: "pint.Quantity | Quantity | float",
-        hi: "pint.Quantity | Quantity | float",
+        min: "pint.Quantity | Quantity | float",  # noqa: A002
+        max: "pint.Quantity | Quantity | float",  # noqa: A002
     ) -> bool:
-        """True iff every scenario/mode evaluation lies within [lo, hi].
+        """True iff every scenario/mode evaluation lies within [min, max].
 
-        ``lo`` and ``hi`` may be:
+        ``min`` and ``max`` may be:
 
         - ``pint.Quantity`` (e.g. ``3.3 * units.V``) — convenient for non-offset units;
         - framework ``Quantity`` (e.g. ``Constant(125, units.degC)``) — works for
           offset units like degC/degF where ``125 * degC`` raises in Pint;
         - plain numbers — assumed to be in ``self.unit``.
         """
-        lo_f = _coerce_to_unit(lo, self.unit)
-        hi_f = _coerce_to_unit(hi, self.unit)
+        min_f = _coerce_to_unit(min, self.unit)
+        max_f = _coerce_to_unit(max, self.unit)
         for v in self._iter_scenario_values():
-            v_lo, v_hi = _as_range(v)
-            if v_lo < lo_f or v_hi > hi_f:
+            v_min, v_max = _as_range(v)
+            if v_min < min_f or v_max > max_f:
                 return False
         return True
 
@@ -195,7 +195,7 @@ class Quantity:
         """Yield ``(scenario, mode, value)`` for every axis combination.
 
         Scenario and mode are ``None`` when the Quantity doesn't carry that
-        axis at the leaf being visited. ``value`` is a scalar or ``(lo, hi)``
+        axis at the leaf being visited. ``value`` is a scalar or ``(min, max)``
         range tuple in ``self.unit``. Used by run-time contract consistency
         (design doc 6.7) and verification-test result enumeration (6.8) to
         report the exact corner(s) where a check failed.
@@ -334,32 +334,32 @@ def _convert_factor(src: pint.Unit, dst: pint.Unit) -> float:
 
 
 def _add_ranges(a: ScalarOrRange, b: ScalarOrRange) -> ScalarOrRange:
-    a_lo, a_hi = _as_range(a)
-    b_lo, b_hi = _as_range(b)
-    return _collapse((a_lo + b_lo, a_hi + b_hi))
+    a_min, a_max = _as_range(a)
+    b_min, b_max = _as_range(b)
+    return _collapse((a_min + b_min, a_max + b_max))
 
 
 def _sub_ranges(a: ScalarOrRange, b: ScalarOrRange) -> ScalarOrRange:
-    a_lo, a_hi = _as_range(a)
-    b_lo, b_hi = _as_range(b)
-    return _collapse((a_lo - b_hi, a_hi - b_lo))
+    a_min, a_max = _as_range(a)
+    b_min, b_max = _as_range(b)
+    return _collapse((a_min - b_max, a_max - b_min))
 
 
 def _mul_ranges(a: ScalarOrRange, b: ScalarOrRange) -> ScalarOrRange:
-    a_lo, a_hi = _as_range(a)
-    b_lo, b_hi = _as_range(b)
-    corners = (a_lo * b_lo, a_lo * b_hi, a_hi * b_lo, a_hi * b_hi)
+    a_min, a_max = _as_range(a)
+    b_min, b_max = _as_range(b)
+    corners = (a_min * b_min, a_min * b_max, a_max * b_min, a_max * b_max)
     return _collapse((min(corners), max(corners)))
 
 
 def _div_ranges(a: ScalarOrRange, b: ScalarOrRange) -> ScalarOrRange:
-    b_lo, b_hi = _as_range(b)
-    if b_lo <= 0.0 <= b_hi:
+    b_min, b_max = _as_range(b)
+    if b_min <= 0.0 <= b_max:
         raise ZeroDivisionError(
             "Quantity division by a range that includes zero is undefined"
         )
-    a_lo, a_hi = _as_range(a)
-    corners = (a_lo / b_lo, a_lo / b_hi, a_hi / b_lo, a_hi / b_hi)
+    a_min, a_max = _as_range(a)
+    corners = (a_min / b_min, a_min / b_max, a_max / b_min, a_max / b_max)
     return _collapse((min(corners), max(corners)))
 
 
@@ -528,30 +528,30 @@ def Constant(value: float | pint.Quantity, unit: pint.Unit | None = None) -> Qua
 
 
 def RangeQuantity(
-    lo: float | pint.Quantity,
-    hi: float | pint.Quantity,
+    min: float | pint.Quantity,  # noqa: A002
+    max: float | pint.Quantity,  # noqa: A002
     unit: pint.Unit | None = None,
 ) -> Quantity:
     """A scenario-invariant range Quantity (worst-case min/max with no scenario detail)."""
-    if isinstance(lo, pint.Quantity):
+    if isinstance(min, pint.Quantity):
         if unit is None:
-            unit = lo.units
-        lo_f = float(lo.to(unit).magnitude)
+            unit = min.units
+        min_f = float(min.to(unit).magnitude)
     else:
         if unit is None:
             raise TypeError(
-                "RangeQuantity requires a unit when lo is not a pint.Quantity"
+                "RangeQuantity requires a unit when min is not a pint.Quantity"
             )
-        lo_f = float(lo)
-    if isinstance(hi, pint.Quantity):
-        hi_f = float(hi.to(unit).magnitude)
+        min_f = float(min)
+    if isinstance(max, pint.Quantity):
+        max_f = float(max.to(unit).magnitude)
     else:
-        hi_f = float(hi)
-    if lo_f > hi_f:
+        max_f = float(max)
+    if min_f > max_f:
         raise ValueError(
-            f"RangeQuantity lo ({lo_f}) must be <= hi ({hi_f}) in unit {unit}"
+            f"RangeQuantity min ({min_f}) must be <= max ({max_f}) in unit {unit}"
         )
-    return Quantity(unit=unit, value=(lo_f, hi_f) if lo_f != hi_f else lo_f)
+    return Quantity(unit=unit, value=(min_f, max_f) if min_f != max_f else min_f)
 
 
 __all__ = [
