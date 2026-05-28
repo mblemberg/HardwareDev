@@ -90,6 +90,25 @@ class TestConstruction:
         with pytest.raises(ValueError):
             Quantity(unit=V, by_mode={"active": Constant(3.3, mV)})
 
+    def test_by_scenario_and_by_mode_both_set_rejected(self) -> None:
+        # The axes nest; scenario variation belongs *inside* each mode child,
+        # not alongside by_mode. Setting both silently dropped the scenario data
+        # before this guard — see C-6.
+        with pytest.raises(ValueError, match="more than one"):
+            Quantity(
+                unit=V,
+                by_mode={INVARIANT: Constant(75.0, V)},
+                by_scenario={"hot": 100.0, "cold": 50.0},
+            )
+
+    def test_by_scenario_and_value_both_set_rejected(self) -> None:
+        with pytest.raises(ValueError, match="more than one"):
+            Quantity(unit=V, by_scenario={"hot": 100.0}, value=75.0)
+
+    def test_by_mode_and_value_both_set_rejected(self) -> None:
+        with pytest.raises(ValueError, match="more than one"):
+            Quantity(unit=V, by_mode={INVARIANT: Constant(75.0, V)}, value=75.0)
+
     def test_by_mode_children_with_disjoint_scenario_keys_rejected(self) -> None:
         with pytest.raises(ValueError, match="scenario keys"):
             Quantity(

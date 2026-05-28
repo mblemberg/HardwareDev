@@ -46,7 +46,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, TypeVar
 
-from framework.quantity import INVARIANT, Quantity, _as_range, _coerce_to_unit
+from framework.quantity import INVARIANT, Quantity, _as_range, _magnitude_in
 
 if TYPE_CHECKING:
     import pint
@@ -260,8 +260,8 @@ class VerificationContext:
         evidence: Mapping[str, Any] | None = None,
     ) -> TestResult:
         """Check that every corner of ``q`` lies within ``[lo, hi]``."""
-        lo_f = _coerce_to_unit(lo, q.unit)
-        hi_f = _coerce_to_unit(hi, q.unit)
+        lo_f = _magnitude_in(lo, q.unit)
+        hi_f = _magnitude_in(hi, q.unit)
         failed: list[ScenarioMode] = []
         for scenario, mode, value in q.iter_axes():
             v_lo, v_hi = _as_range(value)
@@ -283,7 +283,7 @@ class VerificationContext:
         evidence: Mapping[str, Any] | None = None,
     ) -> TestResult:
         """Check that every corner of ``q`` is ``<= upper``."""
-        u = _coerce_to_unit(upper, q.unit)
+        u = _magnitude_in(upper, q.unit)
         failed: list[ScenarioMode] = []
         for scenario, mode, value in q.iter_axes():
             _, v_hi = _as_range(value)
@@ -305,7 +305,7 @@ class VerificationContext:
         evidence: Mapping[str, Any] | None = None,
     ) -> TestResult:
         """Check that every corner of ``q`` is ``>= lower``."""
-        lo = _coerce_to_unit(lower, q.unit)
+        lo = _magnitude_in(lower, q.unit)
         failed: list[ScenarioMode] = []
         for scenario, mode, value in q.iter_axes():
             v_lo, _ = _as_range(value)

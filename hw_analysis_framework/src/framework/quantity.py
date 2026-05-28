@@ -25,7 +25,7 @@ Range = tuple[float, float]
 ScalarOrRange = Union[Scalar, Range]
 PintLike = Union[pint.Quantity, "Quantity"]
 
-INVARIANT = "_ALL_"
+INVARIANT = "_ALL_"  # indicates that this value is the same across all scenarios
 
 
 def _as_range(v: ScalarOrRange) -> Range:
@@ -46,14 +46,13 @@ def _collapse(r: Range) -> ScalarOrRange:
     return min if min == max else (min, max)
 
 
-def _coerce_to_unit(
-    value: float | pint.Quantity | Quantity, unit: pint.Unit
-) -> float:
-    """Convert a raw number, Pint quantity, or scalar framework Quantity into ``unit``.
+def _magnitude_in(value: float | pint.Quantity | Quantity, unit: pint.Unit) -> float:
+    """The bare magnitude that ``value`` has when expressed in ``unit``.
 
-    Scalar framework Quantities (no scenario/mode/range axes) are unwrapped to
-    their scalar value and converted offset-aware. Axed Quantities raise —
-    spec bounds must be single points.
+    Accepts a raw number, a Pint quantity, or a scalar framework Quantity, and
+    returns just the number (the unit is tracked once on the owning Quantity, not
+    repeated per value). Scalar framework Quantities are unwrapped offset-aware;
+    axed or range Quantities raise — spec bounds must be single points.
     """
     if isinstance(value, pint.Quantity):
         return float(value.to(unit).magnitude)
@@ -81,14 +80,14 @@ def _coerce_scenario_value(
                 f"Range scenario value must be (min, max); got tuple of length {len(value)}"
             )
         min, max = value  # noqa: A001
-        min_f = _coerce_to_unit(min, unit)
-        max_f = _coerce_to_unit(max, unit)
+        min_f = _magnitude_in(min, unit)
+        max_f = _magnitude_in(max, unit)
         if min_f > max_f:
             raise ValueError(
                 f"Range scenario min ({min_f}) must be <= max ({max_f}) in unit {unit}"
             )
         return _collapse((min_f, max_f))
-    return _coerce_to_unit(value, unit)
+    return _magnitude_in(value, unit)
 
 
 @dataclass(frozen=True)
@@ -115,9 +114,19 @@ class Quantity:
     def __post_init__(self) -> None:
         if not isinstance(self.unit, pint.Unit):
             raise TypeError(f"Quantity.unit must be a pint.Unit, got {type(self.unit)}")
-        if self.by_scenario is None and self.by_mode is None and self.value is None:
+        set_fields = [
+            n for n in ("by_scenario", "by_mode", "value")
+            if getattr(self, n) is not None
+        ]
+        if not set_fields:
             raise ValueError(
                 "Quantity must specify at least one of: by_scenario, by_mode, value"
+            )
+        if len(set_fields) > 1:
+            raise ValueError(
+                f"Quantity carries more than one of by_scenario/by_mode/value "
+                f"({set_fields}); the axes nest — put scenario variation *inside* "
+                f"each by_mode child, not alongside it"
             )
         if self.by_scenario is not None and not self.by_scenario:
             raise ValueError("by_scenario must be non-empty if provided")
@@ -212,8 +221,8 @@ class Quantity:
           offset units like degC/degF where ``125 * degC`` raises in Pint;
         - plain numbers — assumed to be in ``self.unit``.
         """
-        min_f = _coerce_to_unit(min, self.unit)
-        max_f = _coerce_to_unit(max, self.unit)
+        min_f = _magnitude_in(min, self.unit)
+        max_f = _magnitude_in(max, self.unit)
         for v in self._iter_scenario_values():
             v_min, v_max = _as_range(v)
             if v_min < min_f or v_max > max_f:
@@ -495,9 +504,7 @@ def _combine_modes(
     return Quantity(unit=out_unit, by_mode=new_modes)
 
 
-def _combine_scenarios(
-    left: Quantity, right: Quantity, range_op, out_unit
-) -> Quantity:
+def _combine_scenarios(left: Quantity, right: Quantity, range_op, out_unit) -> Quantity:
     left_scen = left.by_scenario
     right_scen = right.by_scenario
     if left_scen is None and right_scen is None:
