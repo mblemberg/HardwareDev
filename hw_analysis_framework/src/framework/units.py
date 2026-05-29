@@ -30,33 +30,6 @@ pint.set_application_registry(registry)
 # pint uses lower case o for Ohm, so we fix that here with an alias in the registry
 registry.define("@alias ohm = Ohm")
 
-
-def _redefine_unit(name: str, definition: str) -> None:
-    """Replace an existing Pint unit definition (no public Pint API for this).
-
-    Pint silently keeps the original definition if you ``define`` over an
-    existing name. To override we have to drop ``name`` from every ChainMap
-    layer of ``registry._units`` and then clear the dimensionality-related
-    caches so the new definition is picked up on the next conversion. Touches
-    Pint internals; revisit if Pint adds an official override mechanism.
-    """
-    for layer in registry._units.maps:
-        layer.pop(name, None)
-    registry.define(definition)
-    for cache_name in (
-        "dimensionality", "parse_unit", "root_units",
-        "dimensional_equivalents", "conversion_factor",
-    ):
-        cache = getattr(registry._cache, cache_name, None)
-        if cache is not None and hasattr(cache, "clear"):
-            cache.clear()
-
-
-# Pint's default ``mil`` is a dimensionless 1/1000 ratio (think milling), not
-# a length. EEs use ``mil`` to mean 1/1000 inch (which Pint calls ``thou``).
-# Override so ``units.mil`` and the string ``"mil"`` both mean the EE sense.
-_redefine_unit("mil", "mil = thou")
-
 # Voltage
 V = registry.volt
 mV = registry.millivolt
@@ -112,15 +85,19 @@ degC = registry.degC
 degF = registry.degF
 
 # Length
-# Note on `mil`: Pint's default `mil` is a dimensionless 1/1000 ratio. We
-# redefine it above (via `_redefine_unit`) to mean 1/1000 inch — the EE sense.
+# `mil` gotcha: Pint's default `mil` is a dimensionless 1/1000 ratio, NOT
+# 1/1000 inch. For the EE sense (PCB trace widths etc.), use `thou` — Pint's
+# name for 1/1000 inch = 25.4 µm. Overriding Pint's `mil` is possible but
+# requires touching internals (see git history); deferred until a real need
+# motivates it.
 m = registry.meter
 cm = registry.centimeter
 mm = registry.millimeter
 um = registry.micrometer
 nm = registry.nanometer
+km = registry.kilometer
 inch = registry.inch
-mil = registry.mil
+thou = registry.thou
 
 # Time
 s = registry.second
@@ -155,6 +132,7 @@ __all__ = [
     "hour",
     "inch",
     "kHz",
+    "km",
     "kOhm",
     "kV",
     "kW",
@@ -165,7 +143,6 @@ __all__ = [
     "mOhm",
     "mV",
     "mW",
-    "mil",
     "minute",
     "mm",
     "ms",
@@ -182,6 +159,7 @@ __all__ = [
     "ps",
     "registry",
     "s",
+    "thou",
     "uA",
     "uF",
     "uH",
