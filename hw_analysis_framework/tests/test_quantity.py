@@ -227,6 +227,33 @@ class TestAt:
         assert q.at(mode="active", scenario="cold") == 0.08
 
 
+# ---------- str / repr ----------
+
+
+class TestStr:
+    def test_scalar(self) -> None:
+        assert str(Constant(3.3, V)) == "3.3 V"
+
+    def test_range(self) -> None:
+        assert str(Quantity(unit=V, value=(3.0, 3.6))) == "[3.0, 3.6] V"
+
+    def test_by_scenario(self) -> None:
+        s = str(Quantity(unit=V, by_scenario={"cold": 3.0, "hot": 3.6}))
+        assert s == "{cold: 3.0, hot: 3.6} V"
+
+    def test_by_mode_nested(self) -> None:
+        q = Quantity(unit=A, by_mode={
+            "sleep":  Constant(7.5e-5, A),
+            "active": Quantity(unit=A, by_scenario={"hot": 0.1, "cold": 0.05}),
+        })
+        assert str(q) == "{sleep: 7.5e-05, active: {hot: 0.1, cold: 0.05}} A"
+
+    def test_repr_still_verbose_for_debugging(self) -> None:
+        # __str__ is the human form; __repr__ stays the full dataclass form.
+        r = repr(Constant(3.3, V))
+        assert "Quantity(" in r and "unit=" in r and "provenance=" in r
+
+
 # ---------- within / predicates ----------
 
 
@@ -523,3 +550,83 @@ def test_power_dissipation_range_propagation() -> None:
     lo, hi = p.at()
     assert math.isclose(lo, 20.0)
     assert math.isclose(hi, 80.0)
+
+
+# ---------- C-7: dimensionless-scaled auto-simplify ----------
+
+
+class TestAutoSimplifyDimensionless:
+    """Multiplicative ops auto-simplify dimensionless-scaled units (% / ppm) and
+    dimensional ratios that cancel (m / cm). See _drop_scaled_dimensionless."""
+
+    def test_v_times_percent_drops_percent(self) -> None:
+        # 10 V × 120 % should be 12 V, not 1200 %·V.
+        q = Constant(10.0, V) * Constant(120.0, units.percent)
+        assert q.unit == V
+        assert math.isclose(q.at(), 12.0)
+
+    def test_percent_times_v_is_commutative(self) -> None:
+        q = Constant(120.0, units.percent) * Constant(10.0, V)
+        assert q.unit == V
+        assert math.isclose(q.at(), 12.0)
+
+    def test_range_times_percent(self) -> None:
+        q = RangeQuantity(10.0, 16.0, V) * Constant(120.0, units.percent)
+        assert q.unit == V
+        lo, hi = q.at()
+        assert math.isclose(lo, 12.0) and math.isclose(hi, 19.2)
+
+    def test_percent_times_percent_is_plain_dimensionless(self) -> None:
+        q = Constant(50.0, units.percent) * Constant(200.0, units.percent)
+        assert q.unit == registry.dimensionless
+        assert math.isclose(q.at(), 1.0)
+
+    def test_by_scenario_times_percent(self) -> None:
+        v = Quantity(unit=V, by_scenario={"cold": 3.0, "hot": 3.6})
+        q = v * Constant(110.0, units.percent)
+        assert q.unit == V
+        assert math.isclose(q.at(scenario="cold"), 3.3)
+        assert math.isclose(q.at(scenario="hot"), 3.96)
+
+    def test_by_mode_times_percent_propagates_through_recursion(self) -> None:
+        # Exercises the _simplify_output=False path through _combine_modes:
+        # children must stay unit-consistent with the parent during recursion.
+        v = Quantity(unit=V, by_mode={
+            "sleep":  Constant(3.3, V),
+            "active": Quantity(unit=V, by_scenario={"hot": 3.6, "cold": 3.0}),
+        })
+        q = v * Constant(90.0, units.percent)
+        assert q.unit == V
+        assert math.isclose(q.at(mode="sleep"), 2.97)
+        assert math.isclose(q.at(mode="active", scenario="hot"), 3.24)
+
+    def test_dimensional_ratio_collapses_to_dimensionless(self) -> None:
+        # 2 m / 50 cm should be 4 (dimensionless), not 0.04 m/cm.
+        q = Constant(2.0, registry.meter) / Constant(50.0, registry.centimeter)
+        assert q.unit == registry.dimensionless
+        assert math.isclose(q.at(), 4.0)
+
+    def test_dimensional_ratio_collapse_propagates_through_by_mode(self) -> None:
+        m_mode = Quantity(unit=registry.meter, by_mode={
+            "x": Constant(1.0, registry.meter),
+            "y": Constant(2.0, registry.meter),
+        })
+        q = m_mode / Constant(50.0, registry.centimeter)
+        assert q.unit == registry.dimensionless
+        assert math.isclose(q.at(mode="x"), 2.0)
+        assert math.isclose(q.at(mode="y"), 4.0)
+
+    def test_dimensional_product_NOT_simplified(self) -> None:
+        # V × V is V², V × A is V·A — auto-simplify must not touch dimensional
+        # products. Engineering convention on V·A vs W is the caller's call.
+        q_vv = Constant(3.0, V) * Constant(2.0, V)
+        assert q_vv.unit == V * V
+        q_va = Constant(3.0, V) * Constant(2.0, A)
+        assert q_va.unit == V * A
+
+    def test_dimensionless_input_unchanged(self) -> None:
+        # Plain dimensionless (not scaled) operand: just a multiplier, no
+        # special path needed.
+        q = Constant(5.0, V) * Constant(2.0, registry.dimensionless)
+        assert q.unit == V
+        assert math.isclose(q.at(), 10.0)

@@ -46,6 +46,13 @@ def _collapse(r: Range) -> ScalarOrRange:
     return min if min == max else (min, max)
 
 
+def _format_leaf(v: ScalarOrRange) -> str:
+    """Human-readable form of one leaf value (scalar or range), no unit."""
+    if isinstance(v, tuple):
+        return f"[{v[0]}, {v[1]}]"
+    return str(v)
+
+
 def _magnitude_in(value: float | pint.Quantity | Quantity, unit: pint.Unit) -> float:
     """The bare magnitude that ``value`` has when expressed in ``unit``.
 
@@ -115,7 +122,8 @@ class Quantity:
         if not isinstance(self.unit, pint.Unit):
             raise TypeError(f"Quantity.unit must be a pint.Unit, got {type(self.unit)}")
         set_fields = [
-            n for n in ("by_scenario", "by_mode", "value")
+            n
+            for n in ("by_scenario", "by_mode", "value")
             if getattr(self, n) is not None
         ]
         if not set_fields:
@@ -263,6 +271,34 @@ class Quantity:
         assert self.value is not None
         return [self.value]
 
+    def __str__(self) -> str:
+        """Human-readable form: payload + abbreviated unit.
+
+        Scalar:        ``3.3 V``
+        Range:         ``[3.0, 3.6] V``
+        by_scenario:   ``{cold: 3.0, hot: 3.6} V``
+        by_mode:       ``{sleep: 75.0, active: {hot: 100.0, cold: 50.0}} µA``
+
+        The dataclass-generated ``__repr__`` (full structure) is preserved for
+        debugging; this is what ``print(q)`` / f-strings produce.
+        """
+        return f"{self._format_payload()} {self.unit:~}"
+
+    def _format_payload(self) -> str:
+        if self.by_mode is not None:
+            items = ", ".join(
+                f"{m}: {child._format_payload()}"
+                for m, child in self.by_mode.items()
+            )
+            return "{" + items + "}"
+        if self.by_scenario is not None:
+            items = ", ".join(
+                f"{k}: {_format_leaf(v)}" for k, v in self.by_scenario.items()
+            )
+            return "{" + items + "}"
+        assert self.value is not None
+        return _format_leaf(self.value)
+
     def to(self, target_unit: pint.Unit) -> Quantity:
         """Return an equivalent Quantity expressed in `target_unit`.
 
@@ -367,6 +403,32 @@ def _div_units(a: pint.Unit, b: pint.Unit) -> pint.Unit:
     return (registry.Quantity(1.0, a) / registry.Quantity(1.0, b)).units
 
 
+def _is_dimensionless_scaled(unit: pint.Unit) -> bool:
+    """True if ``unit`` has dimensionless dimensionality but isn't ``registry.dimensionless``.
+
+    Catches percent / ppm / ppb (scaling-only dimensionless units) and dimensional
+    ratios that happen to cancel (e.g. ``m / cm``). Used by the arithmetic
+    auto-simplifier — see `_binop`.
+    """
+    if unit == registry.dimensionless:
+        return False
+    return (
+        registry.Quantity(1.0, unit).dimensionality
+        == registry.dimensionless.dimensionality
+    )
+
+
+def _drop_scaled_dimensionless(q: Quantity) -> Quantity:
+    """If ``q.unit`` is dimensionless-scaled, fold the scale into the magnitude.
+
+    e.g. ``Constant(120, percent)`` → ``Constant(1.2, dimensionless)``. Leaves
+    dimensional Quantities and plain ``dimensionless`` Quantities untouched.
+    """
+    if _is_dimensionless_scaled(q.unit):
+        return q.to(registry.dimensionless)
+    return q
+
+
 def _convert_factor(src: pint.Unit, dst: pint.Unit) -> float:
     if src == dst:
         return 1.0
@@ -440,6 +502,7 @@ def _binop(
     right_raw: PintLike | float | int,
     range_op,
     unit_op,
+    _simplify_output: bool = True,
 ) -> Quantity:
     # Bare-number lifting depends on the operation:
     #   - Additive (+/-): treat the number as already-in-left's-unit. ``Q(5 V) + 1``
@@ -465,14 +528,34 @@ def _binop(
             raise pint.DimensionalityError(left.unit, right.unit)
         if right.unit != left.unit:
             right = right.to(left.unit)
+    else:
+        # Multiplicative auto-simplify A (C-7): fold dimensionless-scaled operand
+        # units (%, ppm, ppb) into the magnitude so they drop from the output unit.
+        # Engineering intuition: V × 120% should be 1.2 V, not 1200 %·V.
+        left = _drop_scaled_dimensionless(left)
+        right = _drop_scaled_dimensionless(right)
     out_unit = unit_op(left.unit, right.unit)
 
     # Combine across mode axis (outer).
     if left.by_mode is not None or right.by_mode is not None:
-        return _combine_modes(left, right, range_op, unit_op, out_unit)
+        result = _combine_modes(left, right, range_op, unit_op, out_unit)
+    else:
+        # Combine across scenario axis (inner).
+        result = _combine_scenarios(left, right, range_op, out_unit)
 
-    # Combine across scenario axis (inner).
-    return _combine_scenarios(left, right, range_op, out_unit)
+    # Multiplicative auto-simplify B (C-7): collapse a dimensionless-but-not-
+    # dimensionless output unit (e.g. m/cm → dimensionless with scale folded into
+    # the magnitudes). Only at the outermost call — the recursive _combine_modes
+    # passes _simplify_output=False so by_mode children stay unit-consistent with
+    # the parent during the recursion; the final .to(dimensionless) walks every
+    # leaf, including children, in one consistent pass.
+    if (
+        _simplify_output
+        and unit_op is not _add_units
+        and _is_dimensionless_scaled(result.unit)
+    ):
+        result = result.to(registry.dimensionless)
+    return result
 
 
 def _combine_modes(
@@ -487,18 +570,21 @@ def _combine_modes(
                 f"{set(left_modes)} vs {set(right_modes)}"
             )
         new_modes = {
-            m: _binop(left_modes[m], right_modes[m], range_op, unit_op)
+            m: _binop(
+                left_modes[m], right_modes[m], range_op, unit_op,
+                _simplify_output=False,
+            )
             for m in left_modes
         }
     elif left_modes is not None:
         new_modes = {
-            m: _binop(child, right, range_op, unit_op)
+            m: _binop(child, right, range_op, unit_op, _simplify_output=False)
             for m, child in left_modes.items()
         }
     else:
         assert right_modes is not None
         new_modes = {
-            m: _binop(left, child, range_op, unit_op)
+            m: _binop(left, child, range_op, unit_op, _simplify_output=False)
             for m, child in right_modes.items()
         }
     return Quantity(unit=out_unit, by_mode=new_modes)
