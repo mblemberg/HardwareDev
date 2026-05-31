@@ -620,10 +620,26 @@ def _aligned_scenario_keys(
     a_keys = set(a) - {INVARIANT}
     b_keys = set(b) - {INVARIANT}
     if a_keys and b_keys and a_keys != b_keys:
-        if not (a_keys <= b_keys or b_keys <= a_keys):
+        if a_keys <= b_keys:
+            fewer, more = a, b_keys
+        elif b_keys <= a_keys:
+            fewer, more = b, a_keys
+        else:
             raise ValueError(
                 f"Cannot combine Quantities with disjoint scenario sets: "
                 f"{a_keys} vs {b_keys}"
+            )
+        # The narrower operand only aligns if it carries an INVARIANT fallback
+        # for the scenarios it doesn't name; otherwise the combined result has
+        # no value at those keys (which used to surface as a cryptic KeyError
+        # from `_pick`).
+        if INVARIANT not in fewer:
+            missing = more - (set(fewer) - {INVARIANT})
+            raise ValueError(
+                f"Cannot combine Quantities: one operand has no value for "
+                f"scenario(s) {sorted(missing)} and no scenario-invariant "
+                f"fallback. Name the missing scenario(s), use a Constant, or "
+                f"add an INVARIANT entry."
             )
     return sorted((a_keys | b_keys) or {INVARIANT})
 

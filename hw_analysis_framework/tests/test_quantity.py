@@ -460,6 +460,32 @@ class TestScenarioArithmetic:
         with pytest.raises(ValueError):
             _ = a + b
 
+    def test_subset_scenarios_with_invariant_fallback_aligns(self) -> None:
+        # The narrower operand names only "cold" but carries an INVARIANT
+        # fallback, so "hot" resolves to that fallback.
+        a = Quantity(unit=V, by_scenario={"hot": 3.0, "cold": 3.6})
+        b = Quantity(unit=V, by_scenario={"cold": 0.2, INVARIANT: 0.1})
+        q = a + b
+        assert math.isclose(q.at(scenario="cold"), 3.8)
+        assert math.isclose(q.at(scenario="hot"), 3.1)  # uses INVARIANT
+
+    def test_subset_scenarios_with_invariant_fallback_aligns_left_operand(self) -> None:
+        # Same as above but with the narrower operand on the left, exercising
+        # the a_keys <= b_keys branch of the alignment.
+        a = Quantity(unit=V, by_scenario={"cold": 0.2, INVARIANT: 0.1})
+        b = Quantity(unit=V, by_scenario={"hot": 3.0, "cold": 3.6})
+        q = a + b
+        assert math.isclose(q.at(scenario="cold"), 3.8)
+        assert math.isclose(q.at(scenario="hot"), 3.1)  # uses INVARIANT
+
+    def test_subset_scenarios_without_invariant_rejected(self) -> None:
+        # Strict subset with no INVARIANT fallback: "hot" has no value. This
+        # used to surface as a cryptic KeyError: '_ALL_' from `_pick`.
+        a = Quantity(unit=V, by_scenario={"hot": 3.0, "cold": 3.6})
+        b = Quantity(unit=V, by_scenario={"cold": 0.2})
+        with pytest.raises(ValueError, match="no value for scenario"):
+            _ = a + b
+
 
 # ---------- arithmetic: modes ----------
 
