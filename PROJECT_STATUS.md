@@ -109,9 +109,20 @@ With steps 1–5, 7, 8, 9a/b/c, **10**, **11 (v1.1)**, and **12 (v1)** shipped, 
 
 **Step 6 (netlist parser)** — deferred until a real Protel ASCII netlist sample is on hand. Mechanical block-ownership enforcement also lands here.
 
+## Platform vision (north star)
+
+The broader **next-gen hardware development platform** the framework is one piece
+of — FuSa/FMEDA, Altium + Jama integration, characterization-via-rack (real
+measured distributions vs. the synthetic spec "contract"), Silicon Expert pricing
+fallback, dynamically-updated reports, block-reconfiguration UI — is captured in
+[`PLATFORM_VISION.md`](PLATFORM_VISION.md) (from Mike's notes, 2026-05-31). The
+"function-of-Quantities" design question those notes also raised is worked through
+in [`quantity_as_function.ipynb`](quantity_as_function.ipynb).
+
 ## Pending feature requests (captured for design before code)
 
 - **Sequential logic (latches, flip-flops, state machines)** — extension of FR1. v1 truth tables cover combinational logic only; sequential logic needs a `StateMachine` type with prior-state inputs and a reachability check. Pairs with the existing `@verification_test` surface like truth tables do.
 - **Don't-care (X) / tri-state cells in truth tables** — v1 requires concrete 0/1. Small extension once a real datasheet needs it.
 - **Docker dev environment** — onboarding helper that ships a stable Python + Poetry + framework stack so a new engineer is one `docker compose up` away from a working analysis project. Pairs naturally with step 13 (cookiecutter) — the cookiecutter could emit a `Dockerfile` / `compose.yml` alongside the project skeleton.
+- **Quantity v2 — distribution-over-condition-space** (north-star, *not* Phase 1) — reconceive `Quantity` as a function from a shared condition-space to a distribution: `(min,max)`=uniform + a labeled `nom` sample (`min ≤ nom ≤ max`), sensitive only to the dimensions programmed into it. Separates dimensional/correlated from intrinsic/independent variation, dissolves the `by_scenario` lookup-table awkwardness (and the subset-key `KeyError` edge), and unifies the contract-vs-characterization duality from [`PLATFORM_VISION.md`](PLATFORM_VISION.md). Full sketch in [`quantity_v2_design.md`](quantity_v2_design.md). Generalization of today's engine, not a teardown; Phase 1 Quantity stays as-is.
 - **Net / component-tied Quantities** — declare that a Quantity represents a specific net or component param so redundant / conflicting analyses on the same physical thing are detectable. Mostly subsumed by the block-ownership rule (Contracts are the production-side namespace) but a small Contract extension (`binds_to_net=`, `binds_to_component_param=`) would close the residual gap once a netlist namespace exists.
