@@ -1,11 +1,9 @@
 {
-    "python.defaultInterpreterPath": "${workspaceFolder}/hw_analysis_framework/.venv/Scripts/python.exe",
+    "python.defaultInterpreterPath": "${workspaceFolder}/hw_analysis_framework/.venv/bin/python",
     "python.testing.pytestEnabled": true,
     "python.testing.unittestEnabled": false,
     "python.testing.cwd": "${workspaceFolder}/hw_analysis_framework",
     "python.testing.pytestArgs": [
         "tests"
-    ],
-    "python-envs.defaultEnvManager": "ms-python.python:poetry",
-    "python-envs.defaultPackageManager": "ms-python.python:poetry"
+    ]
 }
