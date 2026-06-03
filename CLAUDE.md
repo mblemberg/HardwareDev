@@ -8,6 +8,7 @@ Three sibling git repos under this directory, building a Python framework for co
 HardwareDev/
   hardware_analysis_framework_design.md  # authoritative spec — read first
   design_methodologies_and_philosophies.md
+  PLATFORM_VISION.md                      # north-star: the platform the framework is one piece of
   hw_analysis_framework/                  # the framework package (see its CLAUDE.md)
   components/                             # component library (see its CLAUDE.md)
   example_analysis/                       # reference analysis project (see its CLAUDE.md)

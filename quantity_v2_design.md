@@ -89,6 +89,52 @@ deliberately **not** tracked in this form — that's the explicit worst-case/MC
 tiering. If you need the real PDF, you go to the MC tier; otherwise you keep
 exact bounds plus a propagated nominal, cheaply.
 
+### 3.1 Missing nominal — explicit opt-in, never a silent fallback
+
+`nom` is genuinely optional: some inputs have worst-case bounds but no declared
+typical (a comparator offset spec'd `±5 mV max` with no `typ`; any min/max-only
+datasheet limit). The three tiers are **independent reads** of one object, so a
+missing `nom` only affects the tier that reads it:
+
+- **Worst-case** and **Monte-Carlo** never touch `nom` → unaffected.
+- **Nominal** arithmetic is **partial**: the result carries a `nom` *only if both
+  operands declare one*. Otherwise `nom` is **contagiously absent** (`None`):
+
+  ```
+  result.nom = a.nom ∘ b.nom    if both a.nom and b.nom are present
+             = None             otherwise
+  ```
+
+**No automatic midpoint fallback.** Synthesizing `(min+max)/2` would defeat the
+entire reason `nom` is a separate field from the interval centre — `typ` ≠
+midpoint for any asymmetric tolerance (cap −20%/+80%, LDO with skewed typ), and
+fabricating one would invent data the datasheet never gave. A consumer that needs
+the nominal of a `nom=None` Quantity **raises** ("no nominal declared for X")
+rather than guessing.
+
+If a downstream nominal-tier analysis genuinely needs a number, the engineer
+**opts in explicitly** with `q.with_nominal(x)` — a new Quantity with `nom`
+filled in, validated against `min ≤ x ≤ max`, and attributable in provenance as a
+human-asserted nominal (distinct from a measured or datasheet one). Explicit,
+once, where it's needed — not an invisible default everywhere.
+
+### 3.2 Distribution sources — parametric and empirical
+
+The same `(distribution, nom?)` shape is populated from two kinds of source:
+
+- **Parametric** — `constant` (point mass: `min=max=nom`), `interval`
+  (`min/max`, no `nom`), `uniform`, `normal`, `bimodal`, … built from spec
+  numbers. This is the **contract / datasheet** side.
+- **Empirical** — `from_samples(raw, …)`: an explicit set of measured values
+  becomes a distribution via a **Gaussian Parzen-window (KDE)**. The KDE
+  bandwidth (Silverman by default) both estimates the density *and* drives a
+  **smoothed bootstrap** that lifts a handful of measurements up to the MC sample
+  count; worst-case bounds default to the measured extremes; `nom` stays `None`
+  unless declared (§3.1). This is the **characterization** side — and because it
+  yields the *same type*, a measured part flows through arithmetic identically to
+  a datasheet one. This is the concrete mechanism behind the
+  characterization-vs-contract duality (§8, `PLATFORM_VISION.md`).
+
 ## 4. The correctness insight: two kinds of variation
 
 The reason today's shape feels off is that **two physically different kinds of
@@ -168,7 +214,18 @@ class Quantity:
 class Uniform(Distribution):
     min: float
     max: float
-    nom: float | None = None               # labeled sample; invariant: min <= nom <= max
+    nom: float | None = None               # OPTIONAL labeled sample; invariant: min <= nom <= max
+
+@dataclass(frozen=True)
+class Empirical(Distribution):             # the characterization source (§3.2)
+    samples: np.ndarray                    # measured values
+    bandwidth: float                       # Gaussian Parzen-window / KDE bandwidth
+    nom: float | None = None               # stays None unless explicitly declared
+    # min/max default to measured extremes; MC draws a smoothed bootstrap.
+
+# nominal arithmetic is PARTIAL (§3.1): result.nom is present only if BOTH
+# operands declare one; otherwise None. No (min+max)/2 fallback.
+#   q.with_nominal(x) -> Quantity          # explicit, auditable opt-in; validates min<=x<=max
 
 # sensitivities (vocabulary TBD):
 #   Linear(per_unit, ref)           e.g. resistor tempco: +100 ppm/°C about 25 °C
@@ -180,6 +237,10 @@ class Uniform(Distribution):
 #     applies each sensitivity for dimensions present in `condition`;
 #     dimensions absent from `sensitivities` leave `base` unchanged (broadcast).
 ```
+
+> Prototyped (not in the framework package) in `quantity_v2_proto.py`, demonstrated
+> by the slide deck (`quantity_animation.py`) and matrix demo
+> (`quantity_distributions_demo.py`).
 
 ## 8. Why this is the right north star
 
